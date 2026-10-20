@@ -1,0 +1,2657 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="generator" content="EasyDay3D">
+<link rel="icon" href="data:,">
+<title>Stein am Kocher – Begehung</title>
+<style>
+  /* Begehung (ADR 0068): Ich-Perspektive wie in einem Spiel. Größen hängen an --u (wächst mit dem Fenster). */
+  :root { --u: clamp(11px, 0.5vw + 0.5vh, 16px); --bg: rgba(22, 24, 28, 0.62); --bg2: rgba(34, 37, 43, 0.86);
+          --line: rgba(255, 255, 255, 0.16); --acc: #f2a93b; }
+  html, body { margin: 0; height: 100%; background: #16181c; color: #e8eaed; font: var(--u)/1.35 system-ui, sans-serif;
+               overflow: hidden; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+  canvas#c { display: block; width: 100vw; height: 100vh; touch-action: none; outline: none; cursor: crosshair; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .glass, .btn { background: var(--bg); border: 1px solid var(--line); border-radius: 0.6em;
+                 backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .btn { padding: 0.45em 0.9em; white-space: nowrap; }
+  .btn:hover { background: var(--bg2); }
+  .btn.on, .btn.main { background: var(--acc); border-color: var(--acc); color: #16181c; font-weight: 600; }
+  /* Fadenkreuz und Hinweis */
+  /* Dezenter Punkt; über einer Tür ein Ring */
+  #cross { position: fixed; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%;
+           background: rgba(255, 255, 255, 0.7); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25); pointer-events: none;
+           transition: all 0.15s ease; }
+  #cross.door { width: 16px; height: 16px; margin: -8px 0 0 -8px; background: none; border: 2px solid var(--acc);
+                box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3); }
+  /* Ladebildschirm, Raumname, Türschilder, Regler */
+  #loader { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 1em; background: radial-gradient(ellipse at 50% 40%, #2a2e35 0%, #121417 75%); z-index: 10;
+            transition: opacity 0.9s ease; }
+  #loader.done { opacity: 0; pointer-events: none; }
+  #loader h1 { margin: 0; font-size: 2.2em; font-weight: 600; letter-spacing: 0.01em; text-align: center; max-width: 90vw; }
+  #loader .sub { color: #aab0b8; letter-spacing: 0.12em; text-transform: uppercase; font-size: 0.85em; }
+  #lbar { width: min(22em, 70vw); height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+  #lbar div { height: 100%; width: 0; background: var(--acc); transition: width 0.3s ease; }
+  #ltext { color: #c8ccd2; min-height: 1.4em; }
+  #toast { position: fixed; left: 50%; top: 16%; transform: translateX(-50%); text-align: center; pointer-events: none;
+           opacity: 0; transition: opacity 0.8s ease; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6); }
+  #toast.show { opacity: 1; }
+  #fade { position: fixed; inset: 0; background: #0d0e10; opacity: 0; pointer-events: none; transition: opacity 0.25s ease; }
+  #fade.on { opacity: 1; }
+  #toast b { display: block; font-size: 1.9em; font-weight: 600; }
+  #toast span { color: #e0e3e8; letter-spacing: 0.1em; text-transform: uppercase; font-size: 0.85em; }
+  .sign { position: fixed; transform: translate(-50%, -50%); padding: 0.2em 0.55em; border-radius: 0.25em; pointer-events: none;
+          background: rgba(30, 32, 36, 0.88); color: #f2f2f0; font-weight: 600; letter-spacing: 0.04em; white-space: nowrap;
+          border: 1px solid rgba(255, 255, 255, 0.25); display: none; }
+  #sliders { display: grid; grid-template-columns: auto 1fr 3.2em; gap: 0.35em 0.7em; align-items: center; margin-top: 0.6em; }
+  #sliders input { accent-color: var(--acc); width: 100%; }
+  #sliders output { text-align: right; color: #c8ccd2; }
+  #hint { position: fixed; left: 50%; top: calc(50% + 2.2em); transform: translateX(-50%); padding: 0.35em 0.8em;
+          pointer-events: none; display: none; white-space: nowrap; }
+  #hint b { display: inline-block; min-width: 1.4em; text-align: center; border: 1px solid rgba(255, 255, 255, 0.6);
+            border-radius: 0.3em; margin-right: 0.4em; padding: 0 0.25em; }
+  /* Ort und Minikarte */
+  #area { position: fixed; top: 0.8em; left: 0.8em; padding: 0.35em 0.8em; font-weight: 600; max-width: 60vw;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+  #mapBox { position: fixed; top: 0.8em; right: 0.8em; width: clamp(120px, 20vmin, 210px); aspect-ratio: 1; padding: 0;
+            overflow: hidden; border-radius: 50%; }
+  #map { width: 100%; height: 100%; display: block; }
+  #menuBtn { position: fixed; top: calc(0.8em + clamp(120px, 20vmin, 210px) + 0.5em); right: 0.8em; display: none; }
+  /* Menü (Esc) */
+  #menu { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(10, 11, 13, 0.45); }
+  #menu.hidden { display: none; }
+  #panel { width: min(30em, 92vw); max-height: 88vh; overflow-y: auto; padding: 1em 1.2em; scrollbar-width: thin; }
+  #panel h1 { font-size: 1.35em; margin: 0 0 0.2em; }
+  #panel h2 { font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #aab0b8;
+              margin: 1.1em 0 0.4em; }
+  #panel p { margin: 0.2em 0; color: #c8ccd2; }
+  #go { width: 100%; margin-top: 0.8em; padding: 0.7em; font-size: 1.1em; }
+  .row { display: flex; flex-wrap: wrap; gap: 0.4em; }
+  .chip { background: rgba(255, 255, 255, 0.07); border: 1px solid var(--line); border-radius: 1em; padding: 0.3em 0.85em; }
+  .chip.on { background: var(--acc); border-color: var(--acc); color: #16181c; font-weight: 600; }
+  #places h3 { margin: 0.5em 0 0.2em; font-size: 0.85em; color: #aab0b8; font-weight: 600; }
+  #keys { display: grid; grid-template-columns: auto 1fr; gap: 0.2em 0.8em; color: #c8ccd2; font-size: 0.95em; }
+  #keys kbd { font: inherit; font-weight: 600; color: #e8eaed; white-space: nowrap; }
+  /* Touch */
+  #joy { position: fixed; left: max(1.2em, env(safe-area-inset-left)); bottom: max(1.6em, env(safe-area-inset-bottom));
+         width: clamp(100px, 26vmin, 160px); aspect-ratio: 1; border-radius: 50%; background: rgba(255, 255, 255, 0.10);
+         border: 2px solid rgba(255, 255, 255, 0.35); touch-action: none; display: none; }
+  #joy div { position: absolute; left: 30%; top: 30%; width: 40%; height: 40%; border-radius: 50%;
+             background: rgba(255, 255, 255, 0.55); pointer-events: none; }
+  #jumpBtn { position: fixed; right: max(1.2em, env(safe-area-inset-right)); bottom: max(1.8em, env(safe-area-inset-bottom));
+             width: clamp(56px, 14vmin, 80px); aspect-ratio: 1; border-radius: 50%; display: none; font-size: 1.3em; }
+  #msg { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+  #msg span { background: var(--bg2); border-radius: 0.6em; padding: 0.5em 1em; max-width: 80vw; text-align: center; }
+  #msg span:empty { display: none; }
+  @media (max-width: 640px), (max-height: 460px) {
+    :root { --u: clamp(12px, 1.4vw + 1.1vh, 15px); }
+  }
+</style>
+</head>
+<body>
+<canvas id="c" tabindex="0" aria-label="Begehung in Ich-Perspektive – klicken zum Umsehen mit der Maus, W A S D zum Gehen"></canvas>
+<div id="cross"></div>
+<div id="hint" class="glass"></div>
+<div id="area" class="glass"></div>
+<div id="mapBox" class="glass" title="Minikarte (M)"><canvas id="map" width="256" height="256"></canvas></div>
+<button id="menuBtn" class="btn" aria-label="Menü">☰</button>
+<div id="joy" aria-label="Joystick zum Gehen"><div></div></div>
+<button id="jumpBtn" class="btn" aria-label="Springen">⤒</button>
+<div id="menu">
+  <div id="panel" class="glass">
+    <h1 id="ttl">Stein am Kocher</h1>
+    <p id="sub">Begehung – Lädt …</p>
+    <button id="go" class="btn main" disabled>Losgehen</button>
+    <h2>Springen zu</h2>
+    <div id="places"></div>
+    <h2>Steuerung</h2>
+    <div id="keys"></div>
+    <h2>Einstellungen</h2>
+    <div class="row" id="quality"></div>
+    <div class="row" style="margin-top:0.5em" id="toggles"></div>
+    <div id="sliders"></div>
+  </div>
+</div>
+<div id="toast"><b></b><span></span></div>
+<div id="fade"></div>
+<div id="signs"></div>
+<div id="loader"><div class="sub">Begehung</div><h1>Stein am Kocher</h1><div id="lbar"><div></div></div><div id="ltext">Lädt …</div></div>
+<div id="msg"><span></span></div>
+<script id="glb" type="application/octet-stream" data-parts="daten/modell.glb" data-bytes="20613468"></script>
+<script>
+"use strict";
+(async () => {
+const $ = id => document.getElementById(id);
+const canvas = $("c");
+const msgEl = $("msg").firstElementChild;
+// Ladebildschirm: Text und Fortschritt (0…1); Fehler stehen mittig über allem
+const say = (t, f) => {
+  const lt = document.getElementById("ltext");
+  if (lt && t) lt.textContent = t;
+  if (f !== undefined) { const b = document.querySelector("#lbar div"); if (b) b.style.width = Math.round(f * 100) + "%"; }
+};
+const fail = t => { msgEl.textContent = t; const l = document.getElementById("loader"); if (l) l.classList.add("done"); };
+const gl = canvas.getContext("webgl2", { antialias: false, alpha: false, powerPreference: "high-performance" });
+if (!gl) {
+  fail("Dieser Browser kann keine 3D-Grafik (WebGL 2) anzeigen – bitte in einem aktuellen Chrome, Edge, Firefox oder Safari öffnen.");
+  return;
+}
+// Kontextverlust (Speicher knapp, App gewechselt): Hinweis statt leerer Seite, Tippen lädt neu
+canvas.addEventListener("webglcontextlost", e => {
+  e.preventDefault();
+  fail("Die Grafik wurde vom Gerät beendet (Speicher knapp?) – zum Neuladen tippen oder klicken.");
+  addEventListener("pointerdown", () => location.reload(), { once: true });
+});
+canvas.addEventListener("webglcontextrestored", () => location.reload());
+
+// ---------- Kleine Mathematik (Spaltenvektoren, Matrizen spaltenweise wie WebGL) ----------
+function mul(a, b) {
+  const o = new Float32Array(16);
+  for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) {
+    o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3];
+  }
+  return o;
+}
+function invert(m) {
+  const a = m, o = new Float32Array(16);
+  const b00 = a[0] * a[5] - a[1] * a[4], b01 = a[0] * a[6] - a[2] * a[4], b02 = a[0] * a[7] - a[3] * a[4];
+  const b03 = a[1] * a[6] - a[2] * a[5], b04 = a[1] * a[7] - a[3] * a[5], b05 = a[2] * a[7] - a[3] * a[6];
+  const b06 = a[8] * a[13] - a[9] * a[12], b07 = a[8] * a[14] - a[10] * a[12], b08 = a[8] * a[15] - a[11] * a[12];
+  const b09 = a[9] * a[14] - a[10] * a[13], b10 = a[9] * a[15] - a[11] * a[13], b11 = a[10] * a[15] - a[11] * a[14];
+  let det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
+  if (!det) return o;
+  det = 1 / det;
+  o[0] = (a[5] * b11 - a[6] * b10 + a[7] * b09) * det; o[1] = (a[2] * b10 - a[1] * b11 - a[3] * b09) * det;
+  o[2] = (a[13] * b05 - a[14] * b04 + a[15] * b03) * det; o[3] = (a[10] * b04 - a[9] * b05 - a[11] * b03) * det;
+  o[4] = (a[6] * b08 - a[4] * b11 - a[7] * b07) * det; o[5] = (a[0] * b11 - a[2] * b08 + a[3] * b07) * det;
+  o[6] = (a[14] * b02 - a[12] * b05 - a[15] * b01) * det; o[7] = (a[8] * b05 - a[10] * b02 + a[11] * b01) * det;
+  o[8] = (a[4] * b10 - a[5] * b08 + a[7] * b06) * det; o[9] = (a[1] * b08 - a[0] * b10 - a[3] * b06) * det;
+  o[10] = (a[12] * b04 - a[13] * b02 + a[15] * b00) * det; o[11] = (a[9] * b02 - a[8] * b04 - a[11] * b00) * det;
+  o[12] = (a[5] * b07 - a[4] * b09 - a[6] * b06) * det; o[13] = (a[0] * b09 - a[1] * b07 + a[2] * b06) * det;
+  o[14] = (a[13] * b01 - a[12] * b03 - a[14] * b00) * det; o[15] = (a[8] * b03 - a[9] * b01 + a[10] * b00) * det;
+  return o;
+}
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const scale = (a, s) => [a[0] * s, a[1] * s, a[2] * s];
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const len = a => Math.hypot(a[0], a[1], a[2]);
+const norm = a => { const l = len(a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+function lookAt(eye, target, up) {
+  const f = norm(sub(target, eye)), s = norm(cross(f, up)), u = cross(s, f);
+  return new Float32Array([s[0], u[0], -f[0], 0, s[1], u[1], -f[1], 0, s[2], u[2], -f[2], 0,
+    -dot(s, eye), -dot(u, eye), dot(f, eye), 1]);
+}
+function perspective(fovy, aspect, near, far) {
+  const f = 1 / Math.tan(fovy / 2), nf = 1 / (near - far);
+  return new Float32Array([f / aspect, 0, 0, 0, 0, f, 0, 0, 0, 0, (far + near) * nf, -1, 0, 0, 2 * far * near * nf, 0]);
+}
+function ortho(l, r, b, t, n, f) {
+  return new Float32Array([2 / (r - l), 0, 0, 0, 0, 2 / (t - b), 0, 0, 0, 0, -2 / (f - n), 0,
+    -(r + l) / (r - l), -(t + b) / (t - b), -(f + n) / (f - n), 1]);
+}
+function trs(node) {
+  if (node.matrix) return new Float32Array(node.matrix);
+  const t = node.translation || [0, 0, 0], q = node.rotation || [0, 0, 0, 1], s = node.scale || [1, 1, 1];
+  const [x, y, z, w] = q;
+  return new Float32Array([
+    (1 - 2 * (y * y + z * z)) * s[0], 2 * (x * y + z * w) * s[0], 2 * (x * z - y * w) * s[0], 0,
+    2 * (x * y - z * w) * s[1], (1 - 2 * (x * x + z * z)) * s[1], 2 * (y * z + x * w) * s[1], 0,
+    2 * (x * z + y * w) * s[2], 2 * (y * z - x * w) * s[2], (1 - 2 * (x * x + y * y)) * s[2], 0,
+    t[0], t[1], t[2], 1]);
+}
+const det3 = m => m[0] * (m[5] * m[10] - m[6] * m[9]) - m[4] * (m[1] * m[10] - m[2] * m[9]) + m[8] * (m[1] * m[6] - m[2] * m[5]);
+const xform = (m, p) => [m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12], m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13],
+  m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14]];
+const maxScale = m => Math.sqrt(Math.max(m[0] * m[0] + m[1] * m[1] + m[2] * m[2], m[4] * m[4] + m[5] * m[5] + m[6] * m[6],
+  m[8] * m[8] + m[9] * m[9] + m[10] * m[10]));
+function frustumPlanes(m) {
+  const p = [];
+  for (const [i, s] of [[0, 1], [0, -1], [1, 1], [1, -1], [2, 1], [2, -1]]) {
+    const a = m[3] + s * m[i], b = m[7] + s * m[4 + i], c = m[11] + s * m[8 + i], d = m[15] + s * m[12 + i];
+    const l = Math.hypot(a, b, c) || 1;
+    p.push([a / l, b / l, c / l, d / l]);
+  }
+  return p;
+}
+const sphereVisible = (planes, c, r) => planes.every(p => p[0] * c[0] + p[1] * c[1] + p[2] * c[2] + p[3] > -r);
+
+// Modelldaten: eingebettet (Base64, eine Datei) oder als Datendateien neben der Seite (mehrere Dateien zum
+// Hochladen, ADR 0073) – mit Fortschritt `progress(0…1)`
+async function loadData(progress) {
+  const el = $("glb");
+  const parts = (el.getAttribute("data-parts") || "").split(" ").filter(Boolean);
+  if (!parts.length) {
+    const b64 = el.textContent.trim();
+    try {
+      return await (await fetch("data:application/octet-stream;base64," + b64)).arrayBuffer();
+    } catch (e) {
+      const s = atob(b64), u = new Uint8Array(s.length);
+      for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
+      return u.buffer;
+    }
+  }
+  const total = +el.getAttribute("data-bytes") || 0;
+  const chunks = [];
+  let got = 0;
+  for (const url of parts) {
+    let r = null;
+    try { r = await fetch(url); } catch (e) { r = null; }
+    if (!r || !r.ok) {
+      throw new Error(location.protocol === "file:"
+        ? "Diese Fassung besteht aus mehreren Dateien und läuft nur über einen Webserver (z. B. GitHub Pages). Zum Weitergeben per Mail oder Stick die Einzeldatei verwenden."
+        : "Datei fehlt: " + decodeURIComponent(url));
+    }
+    if (r.body && r.body.getReader) {
+      const rd = r.body.getReader();
+      for (;;) {
+        const { done, value } = await rd.read();
+        if (done) break;
+        chunks.push(value); got += value.length;
+        if (total) progress(Math.min(got / total, 1));
+      }
+    } else {
+      const b = new Uint8Array(await r.arrayBuffer());
+      chunks.push(b); got += b.length;
+      if (total) progress(Math.min(got / total, 1));
+    }
+  }
+  const out = new Uint8Array(got);
+  let o = 0;
+  for (const c of chunks) { out.set(c, o); o += c.length; }
+  return out.buffer;
+}
+
+async function run() {
+  // ---------- Modell laden ----------
+  say("Lädt das Modell …", 0.04);
+  const buf = await loadData(f => say("Lädt das Modell … " + Math.round(f * 100) + " %", 0.04 + 0.06 * f));
+  const dv = new DataView(buf);
+  if (buf.byteLength < 20 || dv.getUint32(0, true) !== 0x46546C67) throw new Error("keine gültigen Modelldaten");
+  const jsonLen = dv.getUint32(12, true);
+  const doc = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 20, jsonLen)));
+  const binStart = 20 + jsonLen + 8;
+  const binLen = binStart <= buf.byteLength ? dv.getUint32(20 + jsonLen, true) : 0;
+  const view = i => {
+    const v = doc.bufferViews[i];
+    return new Uint8Array(buf, binStart + (v.byteOffset || 0), v.byteLength);
+  };
+  const comps = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };
+  // Mobil (ADR 0073) sind Positionen und UVs u16 mit extras.q (Wert = o + q · s), Normalen i8 normalisiert:
+  // beim Laden in Float32 zurückrechnen – Zeichnen und Strahltests bleiben unverändert
+  const accCache = new Map();
+  const accessor = i => {
+    if (accCache.has(i)) return accCache.get(i);
+    const a = doc.accessors[i], v = doc.bufferViews[a.bufferView];
+    const T = a.componentType === 5126 ? Float32Array : a.componentType === 5125 ? Uint32Array
+      : a.componentType === 5123 ? Uint16Array : a.componentType === 5122 ? Int16Array
+      : a.componentType === 5120 ? Int8Array : Uint8Array;
+    const c = comps[a.type], n = a.count * c;
+    const off = binStart + (v.byteOffset || 0) + (a.byteOffset || 0);
+    if (off + n * T.BYTES_PER_ELEMENT > binStart + binLen) throw new Error("Modelldaten unvollständig");
+    let out = new T(buf, off, n);
+    const q = a.extras && a.extras.q;
+    if (q && q.o && q.s) {
+      const f = new Float32Array(n);
+      for (let j = 0, k = 0; j < n; j++, k = k + 1 === c ? 0 : k + 1) f[j] = q.o[k] + out[j] * q.s[k];
+      out = f;
+    } else if (a.normalized && T !== Float32Array) {
+      const d = T === Int8Array ? 127 : T === Int16Array ? 32767 : T === Uint8Array ? 255 : 65535;
+      const f = new Float32Array(n);
+      for (let j = 0; j < n; j++) f[j] = Math.max(out[j] / d, -1);
+      out = f;
+    }
+    accCache.set(i, out);
+    return out;
+  };
+  const ed = (doc.scenes && doc.scenes[0] && doc.scenes[0].extras) || {};
+  const cfg = ed.easyday3d || {};
+  // Begehung: Türen, Haupteingang, Grundriss (aus Rust, web_doors.rs / web3d)
+  const W = cfg.walk || {};
+  const sunCfg = cfg.sun || { dir: [0.4, 0.8, 0.3], color: [2, 1.9, 1.8], disk: 1 };
+  const skyCfg = cfg.sky || { zenith: [0.09, 0.22, 0.58], horizon: [0.5, 0.64, 0.82], ambSky: [0.3, 0.4, 0.6], ambGround: [0.2, 0.2, 0.15] };
+
+  // ---------- Shader ----------
+  const COMMON = `
+uniform vec3 uSunDir, uSunColor, uZenith, uHorizon, uAmbSky, uAmbGround;
+uniform float uSunDisk, uHaze, uExposure;
+vec3 sky(vec3 d, float disk) {
+  float y = d.y;
+  vec3 c = mix(uHorizon, uZenith, pow(clamp(y, 0.0, 1.0), 0.5));
+  c = mix(c, mix(uHorizon, uAmbGround, 0.6), smoothstep(0.0, -0.15, y));
+  float mu = max(dot(d, uSunDir), 0.0);
+  c += uSunColor * (0.05 * pow(mu, 8.0) + 0.22 * pow(mu, 64.0)) * (0.3 + 0.7 * uSunDisk);
+  c += uSunColor * disk * uSunDisk * 30.0 * smoothstep(0.99990, 0.99997, mu) * step(-0.01, y);
+  return c;
+}
+vec3 fogColor(vec3 d) { return sky(normalize(vec3(d.x, max(d.y, 0.02), d.z)), 0.0); }
+// AgX (Annäherung nach Wrensch): weiche Lichter, natürliche Farben
+vec3 agxCurve(vec3 x) {
+  vec3 x2 = x * x, x4 = x2 * x2;
+  return 15.5 * x4 * x2 - 40.14 * x4 * x + 31.96 * x4 - 6.868 * x2 * x + 0.4298 * x2 + 0.1191 * x - 0.00232;
+}
+vec3 display(vec3 c) {
+  const mat3 m = mat3(0.842479062253094, 0.0423282422610123, 0.0423756549057051,
+    0.0784335999999992, 0.878468636469772, 0.0784336,
+    0.0792237451477643, 0.0791661274605434, 0.879142973793104);
+  const mat3 mi = mat3(1.19687900512017, -0.0528968517574562, -0.0529716355144438,
+    -0.0980208811401368, 1.15190312990417, -0.0980434501171241,
+    -0.0990297440797205, -0.0989611768448433, 1.15107367264116);
+  vec3 v = m * max(c * uExposure, vec3(1e-10));
+  v = clamp(log2(v), -12.47393, 4.026069);
+  v = (v + 12.47393) / 16.49999;
+  v = agxCurve(v);
+  // etwas mehr Sättigung (Look „Punchy“)
+  float l = dot(v, vec3(0.2126, 0.7152, 0.0722));
+  v = l + (v - l) * 1.12;
+  v = clamp(mi * v, 0.0, 1.0);
+  v = pow(v, vec3(2.2));
+  return mix(v * 12.92, 1.055 * pow(v, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, v));
+}`;
+  const VS = `#version 300 es
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec3 aNor;
+layout(location = 2) in vec2 aUv;
+layout(location = 3) in mat4 aModel;
+layout(location = 7) in vec2 aUv1;
+uniform mat4 uViewProj;
+out vec3 vWorld; out vec3 vNor; out vec2 vUv; out vec2 vUv1;
+void main() {
+  vec4 w = aModel * vec4(aPos, 1.0);
+  vWorld = w.xyz;
+  vNor = transpose(inverse(mat3(aModel))) * aNor;
+  vUv = aUv;
+  vUv1 = aUv1;
+  gl_Position = uViewProj * w;
+}`;
+  const FS = `#version 300 es
+precision highp float;
+precision highp sampler2DShadow;
+precision highp sampler3D;
+in vec3 vWorld; in vec3 vNor; in vec2 vUv; in vec2 vUv1;
+out vec4 outColor;
+${COMMON}
+// Leuchten in der Nähe (Punkt- bzw. Spotlicht): Ort + Reichweite, Farbe × Stärke + Kegel (cos), Richtung
+const int MAX_LIGHTS = 12;
+uniform vec4 uLightPos[MAX_LIGHTS];
+uniform vec4 uLightCol[MAX_LIGHTS];
+uniform vec3 uLightDir[MAX_LIGHTS];
+uniform int uLightCount;
+// Vorab berechnete Lichtkarte (TEXCOORD_1, extras.lightmap): ersetzt das Umgebungslicht
+uniform bool uHasLm;
+uniform sampler2D uLm;
+uniform float uLmScale;
+// Lichtvolumen aus demselben Backen (ADR 0069): Umgebungslicht für Möbel, Türblätter und Teile ohne Lichtkarte.
+// Sechs Richtungen (+x −x +y −y +z −z) als Schichten hintereinander in z, sRGB
+uniform sampler3D uIrr;
+uniform vec3 uIrrMin, uIrrInv, uIrrN;
+uniform float uIrrOn, uIrrScale;
+vec3 irrFace(vec3 uvw, float f) {
+  float z = (clamp(uvw.z * uIrrN.z, 0.5, uIrrN.z - 0.5) + f * uIrrN.z) / (6.0 * uIrrN.z);
+  return texture(uIrr, vec3(uvw.xy, z)).rgb;
+}
+bool inIrr(vec3 p) {
+  vec3 u = (p - uIrrMin) * uIrrInv;
+  return uIrrOn > 0.5 && all(greaterThanEqual(u, vec3(0.0))) && all(lessThanEqual(u, vec3(1.0)));
+}
+vec3 irradiance(vec3 p, vec3 n) {
+  vec3 uvw = (p - uIrrMin) * uIrrInv;
+  vec3 n2 = n * n;
+  return (n2.x * irrFace(uvw, n.x >= 0.0 ? 0.0 : 1.0) + n2.y * irrFace(uvw, n.y >= 0.0 ? 2.0 : 3.0)
+    + n2.z * irrFace(uvw, n.z >= 0.0 ? 4.0 : 5.0)) * uIrrScale;
+}
+uniform vec4 uBase;
+uniform vec3 uEmissive;
+uniform float uMetal, uRough, uCutoff, uNormalScale;
+uniform int uMode, uKind;
+uniform bool uHasTex, uHasNormal;
+uniform sampler2D uTex, uNormalTex;
+uniform vec3 uCamPos;
+uniform sampler2DShadow uShadow;
+uniform mat4 uLightVP;
+uniform vec3 uShadowParams; // Texel (Welt), Texel (UV), Tiefenversatz
+uniform float uShadowOn;
+uniform sampler3D uVis;
+uniform vec3 uVisMin, uVisInv;
+uniform float uVisOn, uInterior, uGroundY;
+uniform float uCut;
+uniform bool uPoche;
+
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float noise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
+}
+float shadowAt(vec3 p, vec3 n) {
+  if (uShadowOn < 0.5) return 1.0;
+  vec4 s = uLightVP * vec4(p + n * uShadowParams.x * 1.5, 1.0);
+  vec3 c = s.xyz / s.w * 0.5 + 0.5;
+  if (any(lessThan(c, vec3(0.0))) || any(greaterThan(c, vec3(1.0)))) return 1.0;
+  float sum = 0.0;
+  for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++)
+    sum += texture(uShadow, vec3(c.xy + vec2(float(i), float(j)) * uShadowParams.y, c.z - uShadowParams.z));
+  return sum / 9.0;
+}
+float visRaw(vec3 p, vec3 n) {
+  if (uVisOn < 0.5) return 1.0;
+  vec3 uvw = (p + n * 0.3 - uVisMin) * uVisInv;
+  if (any(lessThan(uvw, vec3(0.0))) || any(greaterThan(uvw, vec3(1.0)))) return 1.0;
+  return texture(uVis, uvw).r;
+}
+float skyVis(vec3 p, vec3 n) {
+  float f = clamp((visRaw(p, n) - 0.05) / 0.35, 0.0, 1.0);
+  return mix(0.15, 1.0, f * f);
+}
+vec3 interior(vec3 p, vec3 n, vec3 albedo) {
+  if (uInterior <= 0.0 || uVisOn < 0.5) return vec3(0.0);
+  float vis = visRaw(p, n);
+  if (n.y > -0.5) {
+    vis = max(vis, visRaw(p + vec3(0.0, 0.8, 0.0), n));
+  } else {
+    if (p.y < uGroundY + 1.8) return vec3(0.0);
+    vis = max(vis, visRaw(p + n * 1.2, n));
+    vec3 q = p + vec3(0.0, -0.6, 0.0);
+    vis = max(vis, max(visRaw(q + vec3(0.9, 0.0, 0.0), n), visRaw(q - vec3(0.9, 0.0, 0.0), n)));
+    vis = max(vis, max(visRaw(q + vec3(0.0, 0.0, 0.9), n), visRaw(q - vec3(0.0, 0.0, 0.9), n)));
+  }
+  float inside = smoothstep(0.14, 0.04, vis);
+  vec3 warm = vec3(1.0, 0.6, 0.28);
+  return (albedo * warm * 0.05 + warm * 0.08 * smoothstep(-0.5, -0.9, n.y)) * uInterior * inside;
+}
+vec3 perturb(vec3 N, vec3 p, vec2 uv, vec3 t) {
+  vec3 dp1 = dFdx(p), dp2 = dFdy(p);
+  vec2 duv1 = dFdx(uv), duv2 = dFdy(uv);
+  vec3 dp2perp = cross(dp2, N), dp1perp = cross(N, dp1);
+  vec3 T = dp2perp * duv1.x + dp1perp * duv2.x;
+  vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;
+  float im = inversesqrt(max(max(dot(T, T), dot(B, B)), 1e-20));
+  return normalize(mat3(T * im, B * im, N) * t);
+}
+void main() {
+  // Geschoss-Schnitt: alles oberhalb weg, Schnittflächen der Wände dunkel (Rückseiten = Innenseite)
+  if (vWorld.y > uCut) discard;
+  if (uPoche && !gl_FrontFacing) { outColor = vec4(0.16, 0.17, 0.19, 1.0); return; }
+  vec4 base = uBase;
+  if (uHasTex) base *= texture(uTex, vUv);
+  if (uMode == 1 && base.a < uCutoff) discard;
+  vec3 N = normalize(vNor);
+  // Billboards (mobil): gewölbte Normalen gelten für beide Seiten
+  if (!gl_FrontFacing && uKind != 4) N = -N;
+  vec3 Ng = normalize(cross(dFdx(vWorld), dFdy(vWorld)));
+  if (dot(Ng, N) < 0.0) Ng = -Ng;
+  if (uHasNormal) {
+    vec3 t = texture(uNormalTex, vUv).xyz * 2.0 - 1.0;
+    t.xy *= uNormalScale;
+    t.y = -t.y;
+    N = perturb(N, vWorld, vUv, t);
+  }
+  if (uKind == 3) {
+    // Gelände: großflächige Farbschwankung gegen sichtbare Kachelung
+    float m = noise(vWorld.xz * 0.045) * 0.6 + noise(vWorld.xz * 0.19) * 0.4;
+    base.rgb *= mix(0.78, 1.15, m);
+  }
+  vec3 V = uCamPos - vWorld;
+  float dist = length(V);
+  V /= max(dist, 1e-4);
+  // Billboards: eine Fläche, die man fast von der Kante sieht, ausblenden (sonst ein heller Streifen in der Krone)
+  if (uKind == 4 && abs(dot(Ng, V)) < 0.22) discard;
+  if (uKind == 2) {
+    // Wasser: feine Wellen
+    vec2 q = vWorld.xz;
+    float e = 0.05;
+    float h0 = noise(q * 1.7) + 0.5 * noise(q * 4.3);
+    float hx = noise((q + vec2(e, 0.0)) * 1.7) + 0.5 * noise((q + vec2(e, 0.0)) * 4.3);
+    float hz = noise((q + vec2(0.0, e)) * 1.7) + 0.5 * noise((q + vec2(0.0, e)) * 4.3);
+    N = normalize(vec3(-(hx - h0) / e * 0.04, 1.0, -(hz - h0) / e * 0.04));
+  }
+  float nv = max(dot(N, V), 1e-3);
+  vec3 L = normalize(uSunDir);
+  float nl = dot(N, L);
+  float nlp = max(nl, 0.0);
+  // Billboards (mobil) ohne Eigenschatten: die gekreuzten Flächen würden sich sonst streifig selbst verschatten
+  float sh = nl > 0.0 ? (uKind == 4 ? 1.0 : shadowAt(vWorld, Ng)) : 0.0;
+  vec3 sunL = uSunColor * sh;
+  vec3 R = reflect(-V, N);
+  float fog = 1.0 - exp(-dist * uHaze);
+  vec3 fogC = fogColor(-V);
+  // Wie offen ist es hier? Innen kommt das Licht von hellen Wänden und Böden zurück – kaum noch Himmelsblau
+  float open = uVisOn > 0.5 ? clamp((visRaw(vWorld, N) - 0.05) / 0.4, 0.0, 1.0) : 1.0;
+  // Spiegelungen zeigen nur wirklich draußen den Himmel (Spiegel, Glas und Lack drinnen zeigen den Raum)
+  float openR = uVisOn > 0.5 ? smoothstep(0.75, 0.95, visRaw(vWorld, N)) : 1.0;
+  // Licht vom Boden halb entsättigt (sonst werden Decken beige)
+  vec3 gnd = mix(vec3(dot(uAmbGround, vec3(0.2126, 0.7152, 0.0722))), uAmbGround, 0.5);
+  vec3 hemiSky = mix(gnd, uAmbSky, N.y * 0.5 + 0.5);
+  vec3 bounce = vec3(dot(hemiSky, vec3(0.2126, 0.7152, 0.0722))) * vec3(1.06, 1.0, 0.9);
+  if (uKind == 1) {
+    // Glas: dünn und fast farblos, Spiegelung nach Fresnel (innen spiegelt der Raum, nicht der Himmel)
+    float f = 0.04 + 0.96 * pow(1.0 - nv, 5.0);
+    vec3 refl = mix(bounce * (0.85 + 0.4 * clamp(R.y * 0.5 + 0.5, 0.0, 1.0)), sky(R, 1.0), openR);
+    vec3 H = normalize(L + V);
+    refl += uSunColor * sh * pow(max(dot(N, H), 0.0), 2000.0) * 40.0 * step(0.0, nl);
+    float a = clamp(f * 0.85 + 0.025 + base.a * 0.04, 0.0, 1.0);
+    vec3 c = mix(refl, fogC, fog);
+    outColor = vec4(display(c) * a, a);
+    return;
+  }
+  if (uKind == 2) {
+    // Wasser: Spiegelung nach Fresnel, der Rest scheint durch
+    float f1 = 0.02 + 0.98 * pow(1.0 - nv, 5.0);
+    float f = f1;
+    vec3 refl = sky(R, 1.0);
+    vec3 H = normalize(L + V);
+    refl += uSunColor * sh * pow(max(dot(N, H), 0.0), 2000.0) * 40.0 * step(0.0, nl);
+    vec3 c;
+    float a;
+    if (uKind == 1) {
+      a = 1.0 - (1.0 - f) * (1.0 - clamp(base.a, 0.0, 1.0) * 0.35);
+      c = refl;
+    } else {
+      vec3 body = base.rgb * (uAmbSky * 0.8 + sunL * nlp * 0.3);
+      a = mix(base.a, 1.0, f);
+      c = mix(body, refl, f / max(a, 1e-3));
+    }
+    c = mix(c, fogC, fog);
+    outColor = vec4(display(c) * a, a);
+    return;
+  }
+  vec3 albedo = base.rgb * (1.0 - uMetal);
+  vec3 F0 = mix(vec3(0.04), base.rgb, uMetal);
+  float r = clamp(uRough, 0.045, 1.0);
+  float a2 = r * r * r * r;
+  vec3 H = normalize(L + V);
+  float nh = max(dot(N, H), 0.0), vh = max(dot(V, H), 0.0);
+  float dd = nh * nh * (a2 - 1.0) + 1.0;
+  float D = a2 / (3.14159 * dd * dd);
+  float k = (r + 1.0) * (r + 1.0) / 8.0;
+  float G = (nv / (nv * (1.0 - k) + k)) * (nlp / (nlp * (1.0 - k) + k));
+  vec3 F = F0 + (1.0 - F0) * pow(1.0 - vh, 5.0);
+  vec3 spec = D * G * F / max(4.0 * nv * nlp, 1e-4) * nlp * 3.14159;
+  float ao = skyVis(vWorld, N);
+  vec3 hemi = mix(bounce, hemiSky, open) * ao;
+  // Gebackenes Licht: Lichtkarte, sonst (Möbel, Türblätter) das Lichtvolumen – beide aus demselben Backen
+  bool baked = uHasLm || inIrr(vWorld);
+  if (baked) {
+    // Lichtkarte: farbiges Streulicht (Parkett, Himmel) nur halb übernehmen – sonst braune Wände, violettes Parkett
+    vec3 lmc = uHasLm ? texture(uLm, vUv1).rgb * uLmScale : irradiance(vWorld + N * 0.15, N);
+    hemi = mix(vec3(dot(lmc, vec3(0.2126, 0.7152, 0.0722))) * vec3(1.03, 1.0, 0.96), lmc, 0.45);
+  }
+  vec3 col = albedo * (sunL * nlp + hemi) + spec * sunL;
+  // Leuchten: weiches Abklingen bis zur Reichweite, Spots mit Kegel
+  for (int i = 0; i < MAX_LIGHTS; i++) {
+    if (i >= uLightCount) break;
+    vec3 Lv = uLightPos[i].xyz - vWorld;
+    float d2 = dot(Lv, Lv);
+    float range = uLightPos[i].w;
+    float fall = clamp(1.0 - d2 * d2 / (range * range * range * range), 0.0, 1.0);
+    vec3 Ld = Lv * inversesqrt(max(d2, 1e-4));
+    float cone = uLightCol[i].w > -1.5 ? smoothstep(uLightCol[i].w, uLightCol[i].w + 0.15, dot(-Ld, uLightDir[i])) : 1.0;
+    float att = fall * fall / (d2 + 0.25) * cone;
+    float ndl = max(dot(N, Ld), 0.0);
+    vec3 Hl = normalize(Ld + V);
+    float sl = pow(max(dot(N, Hl), 0.0), mix(8.0, 256.0, 1.0 - r)) * (1.0 - r) * 0.5;
+    col += uLightCol[i].rgb * att * (albedo * ndl + F0 * sl * ndl);
+  }
+  if (uMode == 1 && nl < 0.0) {
+    // Gegenlicht durch Blätter
+    col += albedo * vec3(1.1, 1.15, 0.55) * 0.35 * uSunColor * (-nl) * shadowAt(vWorld, -Ng);
+  }
+  // Spiegelungen: draußen der Himmel, drinnen ein neutraler, oben etwas hellerer Raum (Spiegel zeigen keinen Himmel)
+  // Raumhelligkeit für Spiegelungen: nie dunkler als ein Teil des Rücklichts (Spiegel an der Wand sonst schwarz)
+  vec3 roomL = vec3(max(dot(baked ? hemi : bounce, vec3(0.2126, 0.7152, 0.0722)), 0.6 * dot(bounce, vec3(0.2126, 0.7152, 0.0722))));
+  vec3 roomEnv = roomL * (0.85 + 0.4 * clamp(R.y * 0.5 + 0.5, 0.0, 1.0));
+  vec3 env = mix(mix(roomEnv, sky(R, 0.0), openR), mix(roomL, uAmbSky, openR), r);
+  vec3 Fe = F0 + (max(vec3(1.0 - r), F0) - F0) * pow(1.0 - nv, 5.0);
+  float specAo = clamp(pow(nv + ao, exp2(-16.0 * r - 1.0)) - 1.0 + ao, 0.0, 1.0);
+  // Spiegel und blanke Metalle: die Raumspiegelung nicht in der Himmels-Verdeckung versinken lassen
+  if (uMetal > 0.5) specAo = max(specAo, 0.8 * (1.0 - r));
+  float horizon = clamp(1.0 + dot(R, Ng), 0.0, 1.0);
+  col += env * Fe * specAo * horizon;
+  // Mit gebackenem Licht ist der Widerschein der Innenbeleuchtung schon drin (nur das Leuchten der Decken bleibt)
+  col += uEmissive + interior(vWorld, N, baked ? vec3(0.0) : albedo);
+  col = mix(col, fogC, fog);
+  if (uMode == 2) {
+    outColor = vec4(display(col) * base.a, base.a);
+  } else {
+    outColor = vec4(display(col), 1.0);
+  }
+}`;
+  const DEPTH_VS = `#version 300 es
+layout(location = 0) in vec3 aPos;
+layout(location = 2) in vec2 aUv;
+layout(location = 3) in mat4 aModel;
+uniform mat4 uViewProj;
+out vec2 vUv;
+out float vY;
+void main() { vUv = aUv; vec4 w = aModel * vec4(aPos, 1.0); vY = w.y; gl_Position = uViewProj * w; }`;
+  const DEPTH_FS = `#version 300 es
+precision highp float;
+in vec2 vUv;
+in float vY;
+uniform vec4 uBase;
+uniform bool uHasTex;
+uniform sampler2D uTex;
+uniform float uCutoff;
+uniform int uMode;
+uniform float uPick;
+uniform float uCut;
+out vec4 outColor;
+void main() {
+  if (vY > uCut) discard;
+  if (uMode == 1) {
+    float a = uBase.a * (uHasTex ? texture(uTex, vUv).a : 1.0);
+    if (a < uCutoff) discard;
+  }
+  // Auswahl per Doppelklick: Tiefe in drei Bytes
+  vec3 enc = fract(gl_FragCoord.z * vec3(1.0, 255.0, 65025.0));
+  enc.xy -= enc.yz / 255.0;
+  outColor = vec4(enc, uPick);
+}`;
+  const SKY_VS = `#version 300 es
+const vec2 P[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0));
+out vec2 vNdc;
+void main() { vNdc = P[gl_VertexID]; gl_Position = vec4(P[gl_VertexID], 0.999999, 1.0); }`;
+  const SKY_FS = `#version 300 es
+precision highp float;
+in vec2 vNdc;
+out vec4 outColor;
+${COMMON}
+uniform mat4 uInvViewProj;
+uniform vec3 uCamPos;
+void main() {
+  vec4 p = uInvViewProj * vec4(vNdc, 1.0, 1.0);
+  vec3 d = normalize(p.xyz / p.w - uCamPos);
+  vec3 c = sky(d, 1.0);
+  c = mix(c, fogColor(d), clamp(uHaze * 300.0, 0.0, 0.6) * (1.0 - smoothstep(0.0, 0.25, d.y)));
+  // Himmel etwas kräftiger (der Tonemapper entsättigt helle Farben)
+  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  c = max(mix(vec3(l), c, 1.25), vec3(0.0));
+  outColor = vec4(display(c), 1.0);
+}`;
+  function program(vs, fs) {
+    const p = gl.createProgram();
+    for (const [type, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error("Shader: " + gl.getShaderInfoLog(s));
+      gl.attachShader(p, s);
+    }
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error("Shader: " + gl.getProgramInfoLog(p));
+    const cache = {};
+    p.u = name => (name in cache ? cache[name] : (cache[name] = gl.getUniformLocation(p, name)));
+    return p;
+  }
+  // ---------- Nachbearbeitung: Verschattung in Ecken (SSAO), Glühen, Vignette ----------
+  const POST_VS = `#version 300 es
+const vec2 P[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0));
+out vec2 vUv;
+void main() { vUv = P[gl_VertexID] * 0.5 + 0.5; gl_Position = vec4(P[gl_VertexID], 0.0, 1.0); }`;
+  const DEPTH_FN = `
+uniform highp sampler2D uDepth;
+uniform vec4 uProj; // m0, m5, m10, m14 der Projektion
+float vz(vec2 uv) { float d = texture(uDepth, uv).r; return -uProj.w / (d * 2.0 - 1.0 + uProj.z); }
+vec3 vp(vec2 uv) { float z = vz(uv); vec2 n = uv * 2.0 - 1.0; return vec3(n.x * -z / uProj.x, n.y * -z / uProj.y, z); }`;
+  const AO_FS = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 o;
+${DEPTH_FN}
+uniform vec2 uTexel;
+uniform float uRadius, uPxPerM;
+void main() {
+  // Auf Texelmitten der vollen Tiefe rechnen: die halbe Auflösung trifft sonst Texelgrenzen, Nachbar und Mitte
+  // fallen abwechselnd zusammen und die Normale wird spaltenweise falsch (senkrechte Streifen)
+  vec2 uv0 = (floor(vUv / uTexel) + 0.5) * uTexel;
+  if (texture(uDepth, uv0).r >= 0.99999) { o = vec4(1.0); return; }
+  vec3 P = vp(uv0);
+  // Normale aus der kleineren der beiden einseitigen Differenzen (keine Fehler an Kanten)
+  vec3 xa = vp(uv0 + vec2(uTexel.x, 0.0)) - P, xb = P - vp(uv0 - vec2(uTexel.x, 0.0));
+  vec3 ya = vp(uv0 + vec2(0.0, uTexel.y)) - P, yb = P - vp(uv0 - vec2(0.0, uTexel.y));
+  vec3 N = normalize(cross(abs(xa.z) < abs(xb.z) ? xa : xb, abs(ya.z) < abs(yb.z) ? ya : yb));
+  if (dot(N, P) > 0.0) N = -N;
+  float rp = clamp(uRadius * uPxPerM / -P.z, 3.0, 80.0);
+  float ang = 6.2831853 * fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+  float occ = 0.0;
+  for (int i = 0; i < 12; i++) {
+    float t = (float(i) + 0.5) / 12.0;
+    float a = ang + float(i) * 2.39996;
+    vec3 v = vp((floor((uv0 + vec2(cos(a), sin(a)) * rp * sqrt(t) * uTexel) / uTexel) + 0.5) * uTexel) - P;
+    float vv = dot(v, v);
+    float c = max(dot(v, N) - 0.002 * -P.z, 0.0) * inversesqrt(vv + 1e-4);
+    occ += c * clamp(1.0 - vv / (uRadius * uRadius), 0.0, 1.0);
+  }
+  o = vec4(vec3(clamp(1.0 - occ / 12.0 * 2.4, 0.0, 1.0)), 1.0);
+}`;
+  const POST_FS = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 o;
+${DEPTH_FN}
+uniform sampler2D uColor, uAo;
+uniform vec2 uAoTexel;
+uniform float uAoAmt, uBloom, uVignette;
+vec3 lin(vec3 c) { return pow(max(c, vec3(0.0)), vec3(2.2)); }
+void main() {
+  vec3 c = lin(texture(uColor, vUv).rgb);
+  // Verschattung tiefenbewusst weichzeichnen (keine Säume an Kanten)
+  float z0 = vz(vUv), s = 0.0, w = 0.0;
+  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+    vec2 uv = vUv + vec2(float(x), float(y)) * uAoTexel;
+    float k = exp(-abs(vz(uv) - z0) / (0.04 * -z0 + 0.02));
+    s += texture(uAo, uv).r * k;
+    w += k;
+  }
+  float ao = s / max(w, 1e-4);
+  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  // Wirkt vor allem auf das Umgebungslicht: sonnige, helle Flächen kaum
+  c *= mix(1.0, ao, uAoAmt * (1.0 - smoothstep(0.3, 0.85, l)));
+  vec3 b = lin(textureLod(uColor, vUv, 3.0).rgb) * 0.45 + lin(textureLod(uColor, vUv, 5.0).rgb) * 0.55;
+  c += max(b - 0.8, 0.0) * uBloom;
+  vec2 q = vUv - 0.5;
+  c *= 1.0 - uVignette * pow(dot(q, q) * 2.0, 1.4);
+  o = vec4(pow(c, vec3(1.0 / 2.2)), 1.0);
+}`;
+  const mainProg = program(VS, FS);
+  const aoProg = program(POST_VS, AO_FS);
+  const postProg = program(POST_VS, POST_FS);
+  const depthProg = program(DEPTH_VS, DEPTH_FS);
+  const skyProg = program(SKY_VS, SKY_FS);
+
+  // ---------- Texturen ----------
+  const aniso = gl.getExtension("EXT_texture_filter_anisotropic");
+  const maxAniso = aniso ? Math.min(8, gl.getParameter(aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT)) : 0;
+  const maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+  gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  function solid(rgba) {
+    const t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(rgba));
+    return t;
+  }
+  const white = solid([255, 255, 255, 255]), flat = solid([128, 128, 255, 255]);
+  // Bilder dekodieren (parallel), Texturen je Verwendung (Farbe sRGB, Normalen linear)
+  const images = doc.images || [];
+  let decoded = 0;
+  const bitmaps = await Promise.all(images.map(async img => {
+    try {
+      const blob = new Blob([view(img.bufferView)], { type: img.mimeType });
+      let bmp = await createImageBitmap(blob, { premultiplyAlpha: "none", colorSpaceConversion: "none" });
+      if (bmp.width > maxTex || bmp.height > maxTex) {
+        const f = maxTex / Math.max(bmp.width, bmp.height);
+        bmp = await createImageBitmap(blob, { premultiplyAlpha: "none", colorSpaceConversion: "none",
+          resizeWidth: Math.floor(bmp.width * f), resizeHeight: Math.floor(bmp.height * f), resizeQuality: "high" });
+      }
+      return bmp;
+    } catch (e) {
+      console.warn("Bild nicht lesbar", e);
+      return null;
+    } finally {
+      decoded++;
+      say("Lädt Bilder … " + decoded + " / " + images.length, 0.1 + 0.6 * decoded / Math.max(images.length, 1));
+    }
+  }));
+  const wrapOf = v => v === 33071 ? gl.CLAMP_TO_EDGE : v === 33648 ? gl.MIRRORED_REPEAT : gl.REPEAT;
+  const texCache = new Map();
+  function texture(index, srgb) {
+    const key = index + (srgb ? "s" : "l");
+    if (texCache.has(key)) return texCache.get(key);
+    const t = (doc.textures || [])[index];
+    const bmp = t && bitmaps[t.source];
+    let tex = null;
+    if (bmp) {
+      const smp = (doc.samplers || [])[t.sampler] || {};
+      tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, srgb ? gl.SRGB8_ALPHA8 : gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, bmp);
+      gl.generateMipmap(gl.TEXTURE_2D);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrapOf(smp.wrapS));
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrapOf(smp.wrapT));
+      if (maxAniso) gl.texParameterf(gl.TEXTURE_2D, aniso.TEXTURE_MAX_ANISOTROPY_EXT, maxAniso);
+    }
+    texCache.set(key, tex);
+    return tex;
+  }
+
+  // ---------- Materialien ----------
+  const materials = (doc.materials || []).map(m => {
+    const pbr = m.pbrMetallicRoughness || {};
+    const ex = m.extras || {};
+    const mode = m.alphaMode === "MASK" ? 1 : m.alphaMode === "BLEND" ? 2 : 0;
+    const strength = (m.extensions && m.extensions.KHR_materials_emissive_strength
+      && m.extensions.KHR_materials_emissive_strength.emissiveStrength) || 1;
+    return {
+      base: pbr.baseColorFactor || [1, 1, 1, 1],
+      metal: pbr.metallicFactor === undefined ? 1 : pbr.metallicFactor,
+      rough: pbr.roughnessFactor === undefined ? 1 : pbr.roughnessFactor,
+      tex: pbr.baseColorTexture ? texture(pbr.baseColorTexture.index, true) : null,
+      normal: m.normalTexture ? texture(m.normalTexture.index, false) : null,
+      normalScale: m.normalTexture && m.normalTexture.scale !== undefined ? m.normalTexture.scale : 1,
+      emissive: (m.emissiveFactor || [0, 0, 0]).map(v => v * strength),
+      mode, cutoff: m.alphaCutoff === undefined ? 0.5 : m.alphaCutoff,
+      doubleSided: !!m.doubleSided,
+      kind: ex.glass ? 1 : ex.water ? 2 : ex.terrain ? 3 : ex.billboard ? 4 : 0,
+      // Zargen und Rahmen liegen bündig in der Laibung: leicht nach vorn ziehen (kein Flimmern an den Kanten)
+      front: /zarge|rahmen|frame|laibung/i.test(m.name || ""),
+    };
+  });
+  const defaultMaterial = { base: [0.8, 0.8, 0.8, 1], metal: 0, rough: 0.6, tex: null, normal: null, normalScale: 1,
+    emissive: [0, 0, 0], mode: 0, cutoff: 0.5, doubleSided: false, kind: 0 };
+
+  // ---------- Geometrie und Instanzen ----------
+  say("Bereitet die Szene vor …", 0.75);
+  const primGpu = new Map();
+  // Vorab berechnete Lichtkarte (ADR 0068): primitives[].extras.lightmap = { texture, scale } mit TEXCOORD_1
+  const lightmapOf = p => {
+    const l = p.extras && p.extras.lightmap;
+    if (!l || !Number.isInteger(l.texture) || p.attributes.TEXCOORD_1 === undefined) return null;
+    const t = texture(l.texture, true);
+    // Ohne Mipmaps: verkleinert mischen sich sonst benachbarte Bereiche des Atlas (Nähte an Kanten)
+    if (t) { gl.bindTexture(gl.TEXTURE_2D, t); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); }
+    return t ? { tex: t, scale: isFinite(l.scale) && l.scale > 0 ? l.scale : 1 } : null;
+  };
+  function primitiveGpu(mi, pi) {
+    const key = mi + "/" + pi;
+    if (primGpu.has(key)) return primGpu.get(key);
+    const p = doc.meshes[mi].primitives[pi];
+    const at = p.attributes || {};
+    if (at.POSITION === undefined || p.indices === undefined || (p.mode !== undefined && p.mode !== 4)) {
+      primGpu.set(key, null);
+      return null;
+    }
+    const buffer = (target, data) => { const b = gl.createBuffer(); gl.bindBuffer(target, b); gl.bufferData(target, data, gl.STATIC_DRAW); return b; };
+    const pa = doc.accessors[at.POSITION];
+    const pos = accessor(at.POSITION);
+    const count = pos.length / 3;
+    const idx = accessor(p.indices);
+    const g = {
+      pos: buffer(gl.ARRAY_BUFFER, pos),
+      nor: at.NORMAL !== undefined ? buffer(gl.ARRAY_BUFFER, accessor(at.NORMAL)) : null,
+      uv: at.TEXCOORD_0 !== undefined ? buffer(gl.ARRAY_BUFFER, accessor(at.TEXCOORD_0)) : null,
+      uv1: at.TEXCOORD_1 !== undefined ? buffer(gl.ARRAY_BUFFER, accessor(at.TEXCOORD_1)) : null,
+      lm: lightmapOf(p),
+      idx: buffer(gl.ELEMENT_ARRAY_BUFFER, idx),
+      count: idx.length,
+      type: idx instanceof Uint32Array ? gl.UNSIGNED_INT : idx instanceof Uint16Array ? gl.UNSIGNED_SHORT : gl.UNSIGNED_BYTE,
+      center: pa.min && pa.max ? scale(add(pa.min, pa.max), 0.5) : [0, 0, 0],
+      radius: pa.min && pa.max ? len(sub(pa.max, pa.min)) * 0.5 : 1e6,
+      material: p.material === undefined ? defaultMaterial : (materials[p.material] || defaultMaterial),
+      vertices: count,
+      // für Strahltests beim Begehen (Sichten der Daten, kein zusätzlicher Speicher)
+      posArr: pos,
+      idxArr: idx,
+    };
+    primGpu.set(key, g);
+    return g;
+  }
+  const groups = new Map();
+  // Türblätter: eigene Knoten, deren Lage sich ändert (je Knoten die Zeichengruppen)
+  const doorNodes = new Set((Array.isArray(W.doors) ? W.doors : []).map(d => d && d.node).filter(Number.isInteger));
+  const nodeKeys = new Map();
+  const sceneNodes = (doc.scenes && doc.scenes[doc.scene || 0] && doc.scenes[doc.scene || 0].nodes) || [];
+  const bmin = [Infinity, Infinity, Infinity], bmax = [-Infinity, -Infinity, -Infinity];
+  let triangles = 0;
+  function visit(ni, parent, depth) {
+    const node = doc.nodes[ni];
+    if (!node || depth > 32) return;
+    const m = parent ? mul(parent, trs(node)) : trs(node);
+    if (node.mesh !== undefined && doc.meshes[node.mesh]) {
+      const neg = det3(m) < 0;
+      doc.meshes[node.mesh].primitives.forEach((_, pi) => {
+        const g = primitiveGpu(node.mesh, pi);
+        if (!g) return;
+        const isDoor = doorNodes.has(ni);
+        const key = node.mesh + "/" + pi + (neg ? "-" : "+") + (isDoor ? "#" + ni : "");
+        if (isDoor) { if (!nodeKeys.has(ni)) nodeKeys.set(ni, []); nodeKeys.get(ni).push(key); }
+        if (!groups.has(key)) groups.set(key, { g, neg, mats: [], door: isDoor, key, solid: node.name === "Modell" || node.name === "Gelände" });
+        groups.get(key).mats.push(m);
+        triangles += g.count / 3;
+        const c = xform(m, g.center), r = g.radius * maxScale(m);
+        if (r < 2000) for (let k = 0; k < 3; k++) { bmin[k] = Math.min(bmin[k], c[k] - r); bmax[k] = Math.max(bmax[k], c[k] + r); }
+      });
+    }
+    (node.children || []).forEach(c => visit(c, m, depth + 1));
+  }
+  sceneNodes.forEach(n => visit(n, null, 0));
+  const items = [];
+  for (const { g, neg, mats, door, key, solid } of groups.values()) {
+    const n = mats.length;
+    const all = new Float32Array(n * 16);
+    const spheres = new Float32Array(n * 4);
+    mats.forEach((m, i) => {
+      all.set(m, i * 16);
+      const c = xform(m, g.center);
+      spheres.set([c[0], c[1], c[2], g.radius * maxScale(m)], i * 4);
+    });
+    const vao = instBuf => {
+      const v = gl.createVertexArray();
+      gl.bindVertexArray(v);
+      const attr = (loc, b, size) => {
+        if (!b) { gl.disableVertexAttribArray(loc); if (loc === 1) gl.vertexAttrib3f(1, 0, 1, 0); return; }
+        gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
+      };
+      attr(0, g.pos, 3); attr(1, g.nor, 3); attr(2, g.uv, 2); attr(7, g.uv1, 2);
+      gl.bindBuffer(gl.ARRAY_BUFFER, instBuf);
+      for (let k = 0; k < 4; k++) {
+        gl.enableVertexAttribArray(3 + k);
+        gl.vertexAttribPointer(3 + k, 4, gl.FLOAT, false, 64, k * 16);
+        gl.vertexAttribDivisor(3 + k, 1);
+      }
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, g.idx);
+      gl.bindVertexArray(null);
+      return v;
+    };
+    const allBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, allBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, all, gl.STATIC_DRAW);
+    const visBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, visBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, all.byteLength, gl.DYNAMIC_DRAW);
+    items.push({ g, neg, n, all, spheres, vaoAll: vao(allBuf), vaoVis: vao(visBuf), visBuf, allBuf, door, key, solid,
+      scratch: new Float32Array(n * 16), m: g.material });
+  }
+  const itemByKey = new Map(items.map(it => [it.key, it]));
+  const nodeItems = ni => (nodeKeys.get(ni) || []).map(k => itemByKey.get(k)).filter(Boolean);
+  // Undurchsichtiges zuerst (nach Material sortiert), dann Masken, dann Durchsichtiges
+  items.sort((a, b) => a.m.mode - b.m.mode || (materials.indexOf(a.m) - materials.indexOf(b.m)));
+  const focus = cfg.focus || { min: isFinite(bmin[0]) ? bmin : [-10, 0, -10], max: isFinite(bmax[0]) ? bmax : [10, 5, 10] };
+  const focusCenter = scale(add(focus.min, focus.max), 0.5);
+  const focusSize = Math.max(len(sub(focus.max, focus.min)), 5);
+  const groundY = cfg.groundY !== undefined ? cfg.groundY : focus.min[1];
+
+  // Himmelssichtbarkeit (Räume dunkler, abends Innenlicht)
+  const vis = ed.skyVisibility;
+  const visTex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_3D, visTex);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  let visOn = 0, visData = null, visDims = null;
+  if (vis && vis.dims && vis.bufferView !== undefined) {
+    const d = vis.dims;
+    const data = view(vis.bufferView);
+    if (data.length === d[0] * d[1] * d[2]) {
+      gl.texImage3D(gl.TEXTURE_3D, 0, gl.R8, d[0], d[1], d[2], 0, gl.RED, gl.UNSIGNED_BYTE, data);
+      visOn = 1; visData = data; visDims = d;
+    }
+  }
+  if (!visOn) gl.texImage3D(gl.TEXTURE_3D, 0, gl.R8, 1, 1, 1, 0, gl.RED, gl.UNSIGNED_BYTE, new Uint8Array([255]));
+  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  for (const w of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T, gl.TEXTURE_WRAP_R]) gl.texParameteri(gl.TEXTURE_3D, w, gl.CLAMP_TO_EDGE);
+  // Lichtvolumen (ADR 0069, extras.lightmap.volume): sechs Richtungen als Schichten in z, sRGB
+  const irr = ed.lightmap && ed.lightmap.volume;
+  const irrTex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_3D, irrTex);
+  let irrOn = 0, irrData = null;
+  if (irr && irr.dims && irr.bufferView !== undefined) {
+    const d = irr.dims;
+    const data = view(irr.bufferView);
+    if (data.length === d[0] * d[1] * d[2] * 18 && d[2] * 6 <= gl.getParameter(gl.MAX_3D_TEXTURE_SIZE)) {
+      gl.texImage3D(gl.TEXTURE_3D, 0, gl.SRGB8, d[0], d[1], d[2] * 6, 0, gl.RGB, gl.UNSIGNED_BYTE, data);
+      irrOn = 1; irrData = data;
+    }
+  }
+  if (!irrOn) gl.texImage3D(gl.TEXTURE_3D, 0, gl.SRGB8, 1, 1, 1, 0, gl.RGB, gl.UNSIGNED_BYTE, new Uint8Array(3));
+  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  for (const w of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T, gl.TEXTURE_WRAP_R]) gl.texParameteri(gl.TEXTURE_3D, w, gl.CLAMP_TO_EDGE);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+  // Helligkeit an einem Ort (Mittel der sechs Richtungen, Einheiten wie ambSky) – für die Belichtung
+  const srgbLin = b => { const s = b / 255; return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
+  function irrAt(p) {
+    if (!irrOn) return -1;
+    const d = irr.dims;
+    const k = [0, 1, 2].map(i => Math.floor((p[i] - irr.min[i]) / Math.max(irr.size[i], 1e-3) * d[i]));
+    if (k.some((v, i) => v < 0 || v >= d[i])) return -1;
+    const cell = k[0] + d[0] * (k[1] + d[1] * k[2]), n = d[0] * d[1] * d[2];
+    let s = 0;
+    for (let f = 0; f < 6; f++) {
+      const o = (cell + n * f) * 3;
+      s += 0.2126 * srgbLin(irrData[o]) + 0.7152 * srgbLin(irrData[o + 1]) + 0.0722 * srgbLin(irrData[o + 2]);
+    }
+    return s / 6 * irr.scale;
+  }
+
+  // ---------- Schattenkarte ----------
+  const coarse = window.matchMedia && matchMedia("(pointer: coarse)").matches;
+  // Größe nach Qualitätsstufe (neu angelegt bei Wechsel)
+  let shadowSize = 0, shadowTex = null, shadowKey = "";
+  const shadowFb = gl.createFramebuffer();
+  function setShadowSize(size) {
+    if (size === shadowSize) return;
+    if (shadowTex) gl.deleteTexture(shadowTex);
+    shadowSize = size;
+    shadowTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, shadowTex);
+    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, shadowSize, shadowSize);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, shadowTex, 0);
+    gl.drawBuffers([gl.NONE]);
+    gl.readBuffer(gl.NONE);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    shadowKey = "";
+  }
+  setShadowSize(Math.min(coarse ? 1024 : 2048, maxTex));
+  // Kleine Dinge in der Ferne weglassen: Radius unter Abstand × detailK (Qualitätsstufe)
+  let detailK = 0.005, renderScaleMax = 1;
+  let cullEye = [0, 0, 0];
+  const sunDir = norm(sunCfg.dir);
+  const shadowsOn = sunDir[1] > 0.02 && Math.max(...sunCfg.color) > 1e-4;
+  let lightVP = new Float32Array(16), shadowTexel = 0.05, shadowRange = 1000;
+
+  // ---------- Kamera: frei (Augpunkt + Blickrichtung) mit Drehpunkt ----------
+  const camCfg = cfg.camera || {};
+  const startEye = camCfg.eye || add(focusCenter, [focusSize * 0.8, focusSize * 0.5, focusSize * 0.8]);
+  const startTarget = camCfg.target || focusCenter;
+  // Senkrechtes Sichtfeld aus dem waagrechten (Einstellung „Sichtfeld“), je Bild nach Seitenverhältnis
+  let fovY = camCfg.fovY > 0.2 && camCfg.fovY < 2.5 ? camCfg.fovY : 1.0;
+  let fovH = 75;
+  // Belichtung innen angehoben (Augen gewöhnen sich), Leuchten in der Nähe
+  let expMul = 1;
+  const lightU = { n: 0, pos: new Float32Array(48), col: new Float32Array(48), dir: new Float32Array(36) };
+  const EYE = cfg.eyeHeight > 0.5 && cfg.eyeHeight < 3 ? cfg.eyeHeight : 1.65;
+  const clampPitch = p => Math.max(-1.55, Math.min(1.55, p));
+  // Blickrichtung: Gieren 0 = −Z, positiv nach −X (wie die Kamera der App)
+  const dirOf = (yaw, pitch) => [-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch)];
+  const anglesOf = d => { const n = norm(d); return [Math.atan2(-n[0], -n[2]), Math.asin(Math.max(-1, Math.min(1, n[1])))]; };
+  const cam = { eye: startEye.slice(), yaw: 0, pitch: 0 };
+  [cam.yaw, cam.pitch] = anglesOf(sub(startTarget, startEye));
+  let pivot = startTarget.slice();
+  const walk = { on: true, feet: 0, vy: 0, air: false };
+  let anim = null;
+  const eyeOf = () => viewEye();
+  const forwardOf = () => dirOf(cam.yaw, cam.pitch);
+  // Geschoss-Schnitt (Höhe in m, aus = sehr hoch)
+  const CUT_OFF = 1e9;
+  let cut = CUT_OFF;
+
+  // ---------- Zeichnen ----------
+  function setLighting(p) {
+    gl.uniform3fv(p.u("uSunDir"), sunDir);
+    gl.uniform3fv(p.u("uSunColor"), sunCfg.color);
+    gl.uniform3fv(p.u("uZenith"), skyCfg.zenith);
+    gl.uniform3fv(p.u("uHorizon"), skyCfg.horizon);
+    gl.uniform3fv(p.u("uAmbSky"), skyCfg.ambSky);
+    gl.uniform3fv(p.u("uAmbGround"), skyCfg.ambGround);
+    gl.uniform1f(p.u("uSunDisk"), sunCfg.disk || 0);
+    gl.uniform1f(p.u("uHaze"), cfg.haze || 0.0004);
+    gl.uniform1f(p.u("uExposure"), (cfg.exposure || 1) * expMul);
+  }
+  function bindMaterialDepth(m) {
+    gl.uniform4fv(depthProg.u("uBase"), m.base);
+    gl.uniform1i(depthProg.u("uHasTex"), m.tex ? 1 : 0);
+    gl.uniform1f(depthProg.u("uCutoff"), m.cutoff);
+    gl.uniform1i(depthProg.u("uMode"), m.mode);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, m.tex || white);
+  }
+  const poche = m => cut < CUT_OFF && m.mode === 0 && !m.doubleSided && m.kind === 0;
+  function cullFor(m, neg) {
+    // Umlaufsinn immer setzen: die Schnittfläche erkennt Rückseiten an gl_FrontFacing
+    gl.frontFace(neg ? gl.CW : gl.CCW);
+    if (m.doubleSided || m.kind === 1 || m.kind === 2 || poche(m)) gl.disable(gl.CULL_FACE);
+    else gl.enable(gl.CULL_FACE);
+  }
+  function drawAll(it) {
+    gl.bindVertexArray(it.vaoAll);
+    gl.drawElementsInstanced(gl.TRIANGLES, it.g.count, it.g.type, 0, it.n);
+  }
+  function renderShadow(center, half) {
+    const up = Math.abs(sunDir[1]) > 0.99 ? [1, 0, 0] : [0, 1, 0];
+    // Mittelpunkt auf das Texelraster legen (kein Flimmern beim Verschieben)
+    const view0 = lookAt([0, 0, 0], scale(sunDir, -1), up);
+    const texel = 2 * half / shadowSize;
+    const lc = xform(view0, center);
+    const snapped = [Math.round(lc[0] / texel) * texel, Math.round(lc[1] / texel) * texel, lc[2]];
+    const back = xform(invert(view0), snapped);
+    const reach = Math.max(focusSize * 2, half * 4, 400);
+    const view1 = lookAt(add(back, scale(sunDir, reach)), back, up);
+    lightVP = mul(ortho(-half, half, -half, half, 1, reach * 2), view1);
+    shadowTexel = texel;
+    shadowRange = reach * 2;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFb);
+    gl.viewport(0, 0, shadowSize, shadowSize);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthMask(true);
+    gl.clear(gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.POLYGON_OFFSET_FILL);
+    gl.polygonOffset(1.5, 2.0);
+    gl.useProgram(depthProg);
+    gl.uniformMatrix4fv(depthProg.u("uViewProj"), false, lightVP);
+    gl.uniform1i(depthProg.u("uTex"), 0);
+    gl.uniform1f(depthProg.u("uPick"), 0);
+    gl.uniform1f(depthProg.u("uCut"), cut);
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    // Nur was in der Schattenbox liegt (und nicht zu klein ist)
+    const planes = frustumPlanes(lightVP);
+    cullEye = cam.eye;
+    for (const it of items) {
+      if (it.m.mode === 2) continue;
+      const k = visibleCount(it, planes);
+      if (!k) continue;
+      bindMaterialDepth(it.m);
+      gl.disable(gl.CULL_FACE);
+      gl.bindVertexArray(k < 0 ? it.vaoAll : it.vaoVis);
+      gl.drawElementsInstanced(gl.TRIANGLES, it.g.count, it.g.type, 0, k < 0 ? it.n : k);
+    }
+    gl.disable(gl.POLYGON_OFFSET_FILL);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+  function camera() {
+    const w = canvas.width, h = canvas.height;
+    const eye = eyeOf(), fwd = forwardOf();
+    // Nahebene klein genug, um dicht an Wänden und durch Türen zu gehen
+    const near = walk.on ? 0.05 : Math.max(0.03, Math.min(0.5, len(sub(pivot, eye)) * 0.004));
+    const proj = perspective(fovY, w / Math.max(h, 1), near, 8000);
+    const viewM = lookAt(eye, add(eye, fwd), [0, 1, 0]);
+    return { eye, viewProj: mul(proj, viewM), proj };
+  }
+  function visibleCount(it, planes) {
+    const S = it.spheres, e = cullEye;
+    const keep = i => {
+      const r = S[i * 4 + 3];
+      const d = Math.hypot(S[i * 4] - e[0], S[i * 4 + 1] - e[1], S[i * 4 + 2] - e[2]);
+      return (r >= d * detailK || d < r + 2) && sphereVisible(planes, S.subarray(i * 4, i * 4 + 3), r);
+    };
+    if (it.n === 1) return keep(0) ? -1 : 0;
+    let k = 0;
+    for (let i = 0; i < it.n; i++) {
+      if (keep(i)) {
+        it.scratch.set(it.all.subarray(i * 16, i * 16 + 16), k * 16);
+        k++;
+      }
+    }
+    if (k === it.n) return -1;
+    if (k) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, it.visBuf);
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, it.scratch, 0, k * 16);
+    }
+    return k;
+  }
+  const post = { w: 0, h: 0, samples: -1, ok: false, res: [] };
+  let postSamples = 4, postAo = 0.9, postBloom = 0.3;
+  function ensurePost(w, h) {
+    const samples = Math.min(postSamples, gl.getParameter(gl.MAX_SAMPLES) || 0);
+    if (post.w === w && post.h === h && post.samples === samples) return post.ok;
+    for (const [kind, o] of post.res) {
+      if (kind === "t") gl.deleteTexture(o); else if (kind === "f") gl.deleteFramebuffer(o); else gl.deleteRenderbuffer(o);
+    }
+    post.res = [];
+    Object.assign(post, { w, h, samples, ok: false, msFb: null });
+    const tex = (fmt, tw, th, levels, filter) => {
+      const t = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, t);
+      gl.texStorage2D(gl.TEXTURE_2D, levels, fmt, tw, th);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, levels > 1 ? gl.LINEAR_MIPMAP_LINEAR : filter);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      post.res.push(["t", t]);
+      return t;
+    };
+    const fbo = (color, depth, rb) => {
+      const f = gl.createFramebuffer();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+      if (rb) {
+        gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, color);
+        gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depth);
+      } else {
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, color, 0);
+        if (depth) gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depth, 0);
+      }
+      const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+      post.res.push(["f", f]);
+      return ok ? f : null;
+    };
+    try {
+      const levels = Math.floor(Math.log2(Math.max(w, h))) + 1;
+      post.color = tex(gl.RGBA8, w, h, levels, gl.LINEAR);
+      post.depth = tex(gl.DEPTH_COMPONENT24, w, h, 1, gl.NEAREST);
+      post.fb = fbo(post.color, post.depth, false);
+      post.aw = Math.max(1, w >> 1); post.ah = Math.max(1, h >> 1);
+      post.ao = tex(gl.RGBA8, post.aw, post.ah, 1, gl.LINEAR);
+      post.aoFb = fbo(post.ao, null, false);
+      if (samples > 0) {
+        const rc = gl.createRenderbuffer(), rd = gl.createRenderbuffer();
+        post.res.push(["r", rc], ["r", rd]);
+        gl.bindRenderbuffer(gl.RENDERBUFFER, rc);
+        gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, gl.RGBA8, w, h);
+        gl.bindRenderbuffer(gl.RENDERBUFFER, rd);
+        gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, gl.DEPTH_COMPONENT24, w, h);
+        post.msFb = fbo(rc, rd, true);
+        if (!post.msFb) post.samples = 0;
+      }
+      post.ok = !!(post.fb && post.aoFb);
+    } catch (e) {
+      console.warn("Nachbearbeitung nicht verfügbar", e);
+      post.ok = false;
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    if (!post.ok) console.warn("EasyDay3D: ohne Nachbearbeitung (Bildpuffer nicht vollständig)");
+    return post.ok;
+  }
+  function postProcess(w, h, proj) {
+    if (post.msFb) {
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, post.msFb);
+      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, post.fb);
+      gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT, gl.NEAREST);
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+    }
+    gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.BLEND);
+    gl.disable(gl.CULL_FACE);
+    gl.bindVertexArray(null);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, post.color);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    const projU = [proj[0], proj[5], proj[10], proj[14]];
+    // Verschattung in halber Auflösung
+    gl.bindFramebuffer(gl.FRAMEBUFFER, post.aoFb);
+    gl.viewport(0, 0, post.aw, post.ah);
+    gl.useProgram(aoProg);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, post.depth);
+    gl.uniform1i(aoProg.u("uDepth"), 0);
+    gl.uniform4fv(aoProg.u("uProj"), projU);
+    gl.uniform2f(aoProg.u("uTexel"), 1 / w, 1 / h);
+    gl.uniform1f(aoProg.u("uRadius"), 0.4);
+    gl.uniform1f(aoProg.u("uPxPerM"), proj[5] * h * 0.5);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    // Zusammensetzen
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, w, h);
+    gl.useProgram(postProg);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, post.color);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, post.ao);
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, post.depth);
+    gl.uniform1i(postProg.u("uColor"), 0);
+    gl.uniform1i(postProg.u("uAo"), 1);
+    gl.uniform1i(postProg.u("uDepth"), 2);
+    gl.uniform4fv(postProg.u("uProj"), projU);
+    gl.uniform2f(postProg.u("uAoTexel"), 1 / post.aw, 1 / post.ah);
+    gl.uniform1f(postProg.u("uAoAmt"), postAo);
+    gl.uniform1f(postProg.u("uBloom"), postBloom);
+    gl.uniform1f(postProg.u("uVignette"), 0.22);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+  function render() {
+    const dpr = Math.min(window.devicePixelRatio || 1, renderScaleMax);
+    const w = Math.max(1, Math.round(canvas.clientWidth * dpr)), h = Math.max(1, Math.round(canvas.clientHeight * dpr));
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    fovY = Math.max(0.5, Math.min(1.6, 2 * Math.atan(Math.tan(fovH * Math.PI / 360) / (w / h))));
+    const usePost = ensurePost(w, h);
+    // Schatten: Ausschnitt um den Blickpunkt, neu nur bei deutlicher Änderung
+    if (shadowsOn) {
+      const center = walk.on ? cam.eye : pivot;
+      const dist = walk.on ? 25 : len(sub(pivot, cam.eye));
+      const half = Math.min(Math.max(dist * 1.4, 25), 260);
+      const hq = Math.pow(1.25, Math.ceil(Math.log(half) / Math.log(1.25)));
+      const step = hq * 0.2;
+      const key = [hq, Math.round(center[0] / step), Math.round(center[1] / step), Math.round(center[2] / step), cut].join(",");
+      if (key !== shadowKey) {
+        shadowKey = key;
+        renderShadow([Math.round(center[0] / step) * step, center[1], Math.round(center[2] / step) * step], hq);
+      }
+    }
+    const { eye, viewProj, proj } = camera();
+    cullEye = eye;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, usePost ? (post.msFb || post.fb) : null);
+    gl.viewport(0, 0, w, h);
+    gl.clearColor(0, 0, 0, 1);
+    gl.depthMask(true);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    // Himmel
+    gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.BLEND);
+    gl.disable(gl.CULL_FACE);
+    gl.useProgram(skyProg);
+    setLighting(skyProg);
+    gl.uniformMatrix4fv(skyProg.u("uInvViewProj"), false, invert(viewProj));
+    gl.uniform3fv(skyProg.u("uCamPos"), eye);
+    gl.bindVertexArray(null);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    // Szene
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    gl.useProgram(mainProg);
+    setLighting(mainProg);
+    const p = mainProg;
+    // Beim Schnitt sind die Räume offen: Himmelssichtbarkeit (dunkle Räume) gilt dann nicht
+    const visNow = cut < CUT_OFF ? 0 : visOn;
+    gl.uniformMatrix4fv(p.u("uViewProj"), false, viewProj);
+    gl.uniform3fv(p.u("uCamPos"), eye);
+    gl.uniformMatrix4fv(p.u("uLightVP"), false, lightVP);
+    gl.uniform3f(p.u("uShadowParams"), shadowTexel, 1 / shadowSize, 0.03 / shadowRange);
+    gl.uniform1f(p.u("uShadowOn"), shadowsOn ? 1 : 0);
+    gl.uniform1i(p.u("uTex"), 0);
+    gl.uniform1i(p.u("uNormalTex"), 1);
+    gl.uniform1i(p.u("uShadow"), 2);
+    gl.uniform1i(p.u("uVis"), 3);
+    gl.uniform1f(p.u("uVisOn"), visNow);
+    if (visOn) {
+      gl.uniform3fv(p.u("uVisMin"), vis.min);
+      gl.uniform3fv(p.u("uVisInv"), vis.size.map(s => 1 / Math.max(s, 1e-3)));
+    }
+    // Abendglühen der Räume nur nach der Tageszeit: der Export hebt den Wert für leuchtende Lampenschirme auf mindestens 0,6
+    gl.uniform1f(p.u("uInterior"), Math.max(0, ((cfg.interior || 0) - 0.6) / 0.4));
+    gl.uniform1f(p.u("uGroundY"), groundY);
+    gl.uniform1f(p.u("uCut"), cut);
+    gl.uniform1i(p.u("uLightCount"), lightU.n);
+    if (lightU.n) {
+      gl.uniform4fv(p.u("uLightPos"), lightU.pos);
+      gl.uniform4fv(p.u("uLightCol"), lightU.col);
+      gl.uniform3fv(p.u("uLightDir"), lightU.dir);
+    }
+    gl.uniform1i(p.u("uLm"), 4);
+    gl.uniform1i(p.u("uIrr"), 5);
+    gl.uniform1f(p.u("uIrrOn"), irrOn);
+    if (irrOn) {
+      gl.uniform3fv(p.u("uIrrMin"), irr.min);
+      gl.uniform3fv(p.u("uIrrInv"), irr.size.map(s => 1 / Math.max(s, 1e-3)));
+      gl.uniform3fv(p.u("uIrrN"), irr.dims);
+      gl.uniform1f(p.u("uIrrScale"), irr.scale);
+    }
+    gl.activeTexture(gl.TEXTURE5);
+    gl.bindTexture(gl.TEXTURE_3D, irrTex);
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, shadowTex);
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_3D, visTex);
+    const planes = frustumPlanes(viewProj);
+    let current = null;
+    const blended = [];
+    for (const it of items) {
+      if (it.m.mode === 2) { blended.push(it); continue; }
+      draw(it, planes);
+    }
+    // Durchsichtiges von hinten nach vorn
+    blended.sort((a, b) => len(sub(eye, b.spheres.subarray(0, 3))) - len(sub(eye, a.spheres.subarray(0, 3))));
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+    for (const it of blended) draw(it, planes);
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+    gl.bindVertexArray(null);
+    gl.disable(gl.POLYGON_OFFSET_FILL);
+    if (usePost) postProcess(w, h, proj);
+    function draw(it, planes) {
+      const k = visibleCount(it, planes);
+      if (!k) return;
+      const m = it.m;
+      if (m !== current) {
+        current = m;
+        gl.uniform4fv(p.u("uBase"), m.base);
+        gl.uniform3fv(p.u("uEmissive"), m.emissive);
+        gl.uniform1f(p.u("uMetal"), m.metal);
+        gl.uniform1f(p.u("uRough"), m.rough);
+        gl.uniform1f(p.u("uCutoff"), m.cutoff);
+        gl.uniform1f(p.u("uNormalScale"), m.normalScale);
+        gl.uniform1i(p.u("uMode"), m.mode);
+        gl.uniform1i(p.u("uKind"), m.kind);
+        gl.uniform1i(p.u("uHasTex"), m.tex ? 1 : 0);
+        gl.uniform1i(p.u("uHasNormal"), m.normal ? 1 : 0);
+        gl.uniform1i(p.u("uPoche"), poche(m) ? 1 : 0);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, m.tex || white);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, m.normal || flat);
+      }
+      cullFor(m, it.neg);
+      // Tiefenversatz: Zargen/Rahmen vor die Wand, Türblätter knapp hinter die Zarge
+      const off = m.front ? -1 : it.door ? 1 : 0;
+      if (off) { gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(off, off * 2); } else gl.disable(gl.POLYGON_OFFSET_FILL);
+      const lm = it.g.lm;
+      gl.uniform1i(p.u("uHasLm"), lm ? 1 : 0);
+      if (lm) {
+        gl.activeTexture(gl.TEXTURE4);
+        gl.bindTexture(gl.TEXTURE_2D, lm.tex);
+        gl.uniform1f(p.u("uLmScale"), lm.scale);
+      }
+      if (k < 0) {
+        gl.bindVertexArray(it.vaoAll);
+        gl.drawElementsInstanced(gl.TRIANGLES, it.g.count, it.g.type, 0, it.n);
+      } else {
+        gl.bindVertexArray(it.vaoVis);
+        gl.drawElementsInstanced(gl.TRIANGLES, it.g.count, it.g.type, 0, k);
+      }
+    }
+  }
+
+  // ---------- Punkt unter dem Mauszeiger (GPU, wie gezeichnet: Laub, Schnitt) ----------
+  let pickFb = null, pickColor = null, pickDepth = null, pickW = 0, pickH = 0;
+  function pick(px, py) {
+    const w = canvas.width, h = canvas.height;
+    if (!pickFb || pickW !== w || pickH !== h) {
+      if (pickFb) { gl.deleteFramebuffer(pickFb); gl.deleteRenderbuffer(pickColor); gl.deleteRenderbuffer(pickDepth); }
+      pickFb = gl.createFramebuffer();
+      pickColor = gl.createRenderbuffer();
+      gl.bindRenderbuffer(gl.RENDERBUFFER, pickColor);
+      gl.renderbufferStorage(gl.RENDERBUFFER, gl.RGBA8, w, h);
+      pickDepth = gl.createRenderbuffer();
+      gl.bindRenderbuffer(gl.RENDERBUFFER, pickDepth);
+      gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, pickFb);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, pickColor);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, pickDepth);
+      pickW = w; pickH = h;
+    }
+    const x = Math.max(0, Math.min(w - 1, Math.round(px))), y = Math.max(0, Math.min(h - 1, Math.round(h - 1 - py)));
+    const { viewProj } = camera();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, pickFb);
+    gl.viewport(0, 0, w, h);
+    gl.enable(gl.SCISSOR_TEST);
+    gl.scissor(x, y, 1, 1);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST);
+    gl.disable(gl.BLEND);
+    gl.disable(gl.CULL_FACE);
+    gl.useProgram(depthProg);
+    gl.uniformMatrix4fv(depthProg.u("uViewProj"), false, viewProj);
+    gl.uniform1i(depthProg.u("uTex"), 0);
+    gl.uniform1f(depthProg.u("uPick"), 1);
+    gl.uniform1f(depthProg.u("uCut"), cut);
+    for (const it of items) {
+      if (it.m.kind === 1) continue; // durch Glas hindurch
+      bindMaterialDepth(it.m);
+      drawAll(it);
+    }
+    const px4 = new Uint8Array(4);
+    gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px4);
+    gl.disable(gl.SCISSOR_TEST);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindVertexArray(null);
+    if (px4[3] === 0) return null;
+    const z = px4[0] / 255 + px4[1] / 65025 + px4[2] / 16581375;
+    const inv = invert(viewProj);
+    const ndc = [(x + 0.5) / w * 2 - 1, (y + 0.5) / h * 2 - 1, z * 2 - 1];
+    const q = [0, 0, 0, 0];
+    for (let r = 0; r < 4; r++) q[r] = inv[r] * ndc[0] + inv[4 + r] * ndc[1] + inv[8 + r] * ndc[2] + inv[12 + r];
+    const hit = [q[0] / q[3], q[1] / q[3], q[2] / q[3]];
+    return hit.every(isFinite) ? hit : null;
+  }
+  // Bildschirmpunkt (CSS-Pixel) → Treffer bzw. Blickstrahl
+  function pickAt(cx, cy) {
+    const r = canvas.getBoundingClientRect();
+    return pick((cx - r.left) * canvas.width / r.width, (cy - r.top) * canvas.height / r.height);
+  }
+  function rayAt(cx, cy) {
+    const r = canvas.getBoundingClientRect();
+    const nx = (cx - r.left) / r.width * 2 - 1, ny = 1 - (cy - r.top) / r.height * 2;
+    const inv = invert(camera().viewProj);
+    const q = [0, 0, 0, 0];
+    for (let k = 0; k < 4; k++) q[k] = inv[k] * nx + inv[4 + k] * ny + inv[8 + k] + inv[12 + k];
+    return norm(sub([q[0] / q[3], q[1] / q[3], q[2] / q[3]], cam.eye));
+  }
+
+  // ---------- Strahltests auf der CPU (Begehen: Boden und Wände) ----------
+  // Raster in der Grundfläche; jedes Dreieck in allen Zellen seiner Hüllbox, sehr große (Bodenplatte) extra.
+  let coll = null;
+  function buildCollision() {
+    if (coll) return coll;
+    const t0 = performance.now();
+    // Höchstzahl Dreiecke (je 36 Byte): Handys weniger
+    const BUDGET = coarse ? 1200000 : 2500000;
+    // Türblätter bewegen sich (eigene Strahltests); Nahes zuerst, falls das Budget nicht reicht
+    const distOf = it => {
+      let d = Infinity;
+      for (let i = 0; i < it.n; i++) {
+        d = Math.min(d, Math.hypot(it.spheres[i * 4] - focusCenter[0], it.spheres[i * 4 + 2] - focusCenter[2]) - it.spheres[i * 4 + 3]);
+      }
+      return d;
+    };
+    const list = items.filter(it => !it.door && it.m.mode === 0 && it.m.kind !== 1 && it.m.kind !== 2)
+      .map(it => ({ it, d: distOf(it) })).sort((a, b) => a.d - b.d).map(x => x.it);
+    let total = 0;
+    const use = [];
+    for (const it of list) {
+      const t = it.n * it.g.count / 3;
+      if (total + t > BUDGET) continue;
+      total += t;
+      use.push(it);
+    }
+    const T = new Float32Array(total * 9);
+    // Je Dreieck: gehört es zum festen Modell bzw. Gelände? (Startpunkte nur auf solchen Böden)
+    const S = new Uint8Array(total);
+    let k = 0;
+    for (const it of use) {
+      const first = k / 9, count = it.n * Math.floor(it.g.idxArr.length / 3);
+      if (it.solid) S.fill(1, first, first + count);
+      const p = it.g.posArr, ix = it.g.idxArr, nv = p.length / 3;
+      const wp = new Float32Array(p.length);
+      for (let i = 0; i < it.n; i++) {
+        const m = it.all.subarray(i * 16, i * 16 + 16);
+        for (let v = 0; v < nv; v++) {
+          const x = p[v * 3], y = p[v * 3 + 1], z = p[v * 3 + 2];
+          wp[v * 3] = m[0] * x + m[4] * y + m[8] * z + m[12];
+          wp[v * 3 + 1] = m[1] * x + m[5] * y + m[9] * z + m[13];
+          wp[v * 3 + 2] = m[2] * x + m[6] * y + m[10] * z + m[14];
+        }
+        for (let j = 0; j + 2 < ix.length; j += 3) {
+          for (let c = 0; c < 3; c++) {
+            const v = ix[j + c];
+            if (v >= nv) { T[k++] = 0; T[k++] = 0; T[k++] = 0; continue; }
+            T[k++] = wp[v * 3]; T[k++] = wp[v * 3 + 1]; T[k++] = wp[v * 3 + 2];
+          }
+        }
+      }
+    }
+    const n = k / 9;
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    for (let i = 0; i < n * 9; i += 3) {
+      const x = T[i], z = T[i + 2];
+      if (!isFinite(x) || !isFinite(z)) continue;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (z < z0) z0 = z; if (z > z1) z1 = z;
+    }
+    if (!isFinite(x0)) { x0 = z0 = -1; x1 = z1 = 1; }
+    const cell = Math.max(1.0, Math.sqrt((x1 - x0 + 1) * (z1 - z0 + 1) / 1e6));
+    const nx = Math.min(4096, Math.ceil((x1 - x0) / cell) + 1), nz = Math.min(4096, Math.ceil((z1 - z0) / cell) + 1);
+    const BIG = 24;
+    const cellRange = i => {
+      const ax = T[i], bx = T[i + 3], cx = T[i + 6], az = T[i + 2], bz = T[i + 5], cz = T[i + 8];
+      const ix0 = Math.max(0, Math.floor((Math.min(ax, bx, cx) - x0) / cell)), ix1 = Math.min(nx - 1, Math.floor((Math.max(ax, bx, cx) - x0) / cell));
+      const iz0 = Math.max(0, Math.floor((Math.min(az, bz, cz) - z0) / cell)), iz1 = Math.min(nz - 1, Math.floor((Math.max(az, bz, cz) - z0) / cell));
+      return [ix0, ix1, iz0, iz1];
+    };
+    const counts = new Uint32Array(nx * nz + 1);
+    const big = [];
+    for (let t = 0; t < n; t++) {
+      const [ix0, ix1, iz0, iz1] = cellRange(t * 9);
+      if (!(ix1 >= ix0 && iz1 >= iz0)) continue;
+      if (ix1 - ix0 > BIG || iz1 - iz0 > BIG) { big.push(t); continue; }
+      for (let z = iz0; z <= iz1; z++) for (let x = ix0; x <= ix1; x++) counts[z * nx + x + 1]++;
+    }
+    for (let i = 1; i < counts.length; i++) counts[i] += counts[i - 1];
+    const cells = new Uint32Array(counts[counts.length - 1]);
+    const fill = counts.slice(0, nx * nz);
+    for (let t = 0; t < n; t++) {
+      const [ix0, ix1, iz0, iz1] = cellRange(t * 9);
+      if (!(ix1 >= ix0 && iz1 >= iz0) || ix1 - ix0 > BIG || iz1 - iz0 > BIG) continue;
+      for (let z = iz0; z <= iz1; z++) for (let x = ix0; x <= ix1; x++) cells[fill[z * nx + x]++] = t;
+    }
+    coll = { T, S, n, x0, z0, cell, nx, nz, start: counts, cells, big: Uint32Array.from(big), stamp: new Uint32Array(n), mark: 0 };
+    console.info("EasyDay3D: Begehung – " + n.toLocaleString("de-DE") + " Dreiecke für Strahltests, "
+      + nx + " × " + nz + " Zellen, " + ((performance.now() - t0) / 1000).toFixed(2) + " s");
+    return coll;
+  }
+  // Erster Treffer (beide Seiten) bis maxT: { t, n } oder null. `d` normiert.
+  // `solidOnly`: nur festes Modell und Gelände (keine Möbel, Bäume, Autos)
+  function castRay(o, d, maxT, solidOnly) {
+    const c = buildCollision();
+    const T = c.T;
+    let best = maxT, bt = -1;
+    c.mark = (c.mark + 1) >>> 0;
+    if (c.mark === 0) { c.stamp.fill(0); c.mark = 1; }
+    const test = t => {
+      if (c.stamp[t] === c.mark) return;
+      if (solidOnly && !c.S[t]) return;
+      c.stamp[t] = c.mark;
+      const i = t * 9;
+      const e1x = T[i + 3] - T[i], e1y = T[i + 4] - T[i + 1], e1z = T[i + 5] - T[i + 2];
+      const e2x = T[i + 6] - T[i], e2y = T[i + 7] - T[i + 1], e2z = T[i + 8] - T[i + 2];
+      const px = d[1] * e2z - d[2] * e2y, py = d[2] * e2x - d[0] * e2z, pz = d[0] * e2y - d[1] * e2x;
+      const det = e1x * px + e1y * py + e1z * pz;
+      if (Math.abs(det) < 1e-12) return;
+      const inv = 1 / det;
+      const sx = o[0] - T[i], sy = o[1] - T[i + 1], sz = o[2] - T[i + 2];
+      const u = (sx * px + sy * py + sz * pz) * inv;
+      if (u < 0 || u > 1) return;
+      const qx = sy * e1z - sz * e1y, qy = sz * e1x - sx * e1z, qz = sx * e1y - sy * e1x;
+      const v = (d[0] * qx + d[1] * qy + d[2] * qz) * inv;
+      if (v < 0 || u + v > 1) return;
+      const tt = (e2x * qx + e2y * qy + e2z * qz) * inv;
+      if (tt > 1e-4 && tt < best) { best = tt; bt = t; }
+    };
+    for (let k = 0; k < c.big.length; k++) test(c.big[k]);
+    const cellTest = (x, z) => {
+      if (x < 0 || z < 0 || x >= c.nx || z >= c.nz) return;
+      const ci = z * c.nx + x;
+      for (let k = c.start[ci]; k < c.start[ci + 1]; k++) test(c.cells[k]);
+    };
+    let cx = Math.floor((o[0] - c.x0) / c.cell), cz = Math.floor((o[2] - c.z0) / c.cell);
+    if (Math.abs(d[0]) < 1e-9 && Math.abs(d[2]) < 1e-9) {
+      cellTest(cx, cz);
+    } else {
+      // Zellen entlang des Strahls (2D-DDA), Abbruch hinter dem besten Treffer
+      const sx = d[0] > 0 ? 1 : -1, sz = d[2] > 0 ? 1 : -1;
+      const dX = Math.abs(d[0]) > 1e-9 ? c.cell / Math.abs(d[0]) : Infinity;
+      const dZ = Math.abs(d[2]) > 1e-9 ? c.cell / Math.abs(d[2]) : Infinity;
+      let tX = Math.abs(d[0]) > 1e-9 ? ((cx + (sx > 0 ? 1 : 0)) * c.cell + c.x0 - o[0]) / d[0] : Infinity;
+      let tZ = Math.abs(d[2]) > 1e-9 ? ((cz + (sz > 0 ? 1 : 0)) * c.cell + c.z0 - o[2]) / d[2] : Infinity;
+      let t = 0;
+      for (let guard = 0; guard < 20000 && t <= best; guard++) {
+        cellTest(cx, cz);
+        if (tX < tZ) { t = tX; tX += dX; cx += sx; } else { t = tZ; tZ += dZ; cz += sz; }
+        if ((cx < 0 && sx < 0) || (cx >= c.nx && sx > 0) || (cz < 0 && sz < 0) || (cz >= c.nz && sz > 0)) break;
+      }
+    }
+    if (bt < 0) return null;
+    const i = bt * 9;
+    const nrm = norm(cross([T[i + 3] - T[i], T[i + 4] - T[i + 1], T[i + 5] - T[i + 2]],
+      [T[i + 6] - T[i], T[i + 7] - T[i + 1], T[i + 8] - T[i + 2]]));
+    return { t: best, n: nrm };
+  }
+  const STEP = 0.5, RADIUS = 0.25, REACH = 2.0;
+  // Höchster Boden unter (x, y + up, z) innerhalb `depth`, sonst null (Türblätter sind kein Boden)
+  function floorBelow(x, y, z, up, depth) {
+    const h = castRay([x, y + up, z], [0, -1, 0], up + depth);
+    return h ? y + up - h.t : null;
+  }
+  // Boden für einen Standpunkt (Foto-Augpunkt): darunter innerhalb von 4 m, sonst Augenhöhe abziehen
+  function feetFor(p) {
+    const g = floorBelow(p[0], p[1], p[2], 0.2, 4);
+    return g === null ? p[1] - EYE : g;
+  }
+
+  // Standplatz für einen Startpunkt: Boden des festen Modells darunter (nicht Tisch, Sofa, Küchenzeile) und eine
+  // freie Stelle für den Körper (Kapsel 0,3 m, bis 1,9 m hoch) – sonst die nächste freie im Umkreis von 2 m mit
+  // Sichtverbindung. Liefert [x, Füße, z].
+  function startSpot(eye) {
+    const solidFloor = (x, y, z) => { const h = castRay([x, y, z], [0, -1, 0], 6, true); return h ? y - h.t : null; };
+    const g0 = solidFloor(eye[0], eye[1], eye[2]);
+    if (g0 === null) return [eye[0], feetFor(eye), eye[2]];
+    const free = (x, z) => {
+      const g = solidFloor(x, g0 + 1.0, z);
+      if (g === null || Math.abs(g - g0) > 0.4) return null;
+      for (const [dx, dz] of [[0, 0], [0.3, 0], [-0.3, 0], [0, 0.3], [0, -0.3], [0.21, 0.21], [-0.21, 0.21], [0.21, -0.21], [-0.21, -0.21]]) {
+        const h = castRay([x + dx, g + 1.9, z + dz], [0, -1, 0], 2.2);
+        if (!h || g + 1.9 - h.t > g + 0.06) return null;
+      }
+      return g;
+    };
+    const g = free(eye[0], eye[2]);
+    if (g !== null) return [eye[0], g, eye[2]];
+    for (let r = 0.2; r <= 2.0; r += 0.2) {
+      for (let k = 0; k < 16; k++) {
+        const a = k / 16 * 2 * Math.PI, x = eye[0] + Math.cos(a) * r, z = eye[2] + Math.sin(a) * r;
+        const gg = free(x, z);
+        if (gg === null) continue;
+        const to = [x - eye[0], 0, z - eye[2]];
+        if (castRay([eye[0], g0 + 1.2, eye[2]], scale(to, 1 / r), r)) continue;
+        return [x, gg, z];
+      }
+    }
+    return [eye[0], g0, eye[2]];
+  }
+
+  // ---------- Türen ----------
+  const doorCfg = (Array.isArray(W.doors) ? W.doors : []).filter(d => d && Array.isArray(d.hinge) && d.hinge.length === 3
+    && d.hinge.every(isFinite) && isFinite(d.yaw) && isFinite(d.open) && d.width > 0.1 && d.width < 4 && d.height > 0.3 && d.height < 6);
+  const doorMap = new Map();
+  for (const d of doorCfg) {
+    let g = doorMap.get(d.group);
+    if (!g) {
+      g = { name: String(d.name || "Tür"), leaves: [], t: d.start ? 1 : 0, target: d.start ? 1 : 0, entrance: !!d.entrance, y: d.hinge[1] };
+      doorMap.set(d.group, g);
+    }
+    g.leaves.push({ hinge: d.hinge, yaw: d.yaw, width: d.width, height: d.height, thick: Math.max(d.thick || 0, 0.05),
+      open: d.open, slide: d.motion === "slide", items: nodeItems(d.node) });
+  }
+  const doors = [...doorMap.values()];
+  const ease = t => t * t * (3 - 2 * t);
+  const stateOf = (g, L) => ease(g.t) * L.open;
+  function leafMatrix(L, s) {
+    const a = L.slide ? L.yaw : L.yaw + s, off = L.slide ? s : 0;
+    const c = Math.cos(a), sn = Math.sin(a);
+    return new Float32Array([c, 0, -sn, 0, 0, 1, 0, 0, sn, 0, c, 0,
+      L.hinge[0] + Math.cos(L.yaw) * off, L.hinge[1], L.hinge[2] - Math.sin(L.yaw) * off, 1]);
+  }
+  function applyDoor(g) {
+    for (const L of g.leaves) {
+      const m = leafMatrix(L, stateOf(g, L));
+      for (const it of L.items) {
+        it.all.set(m, 0);
+        const c = xform(m, it.g.center);
+        it.spheres.set(c, 0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, it.allBuf);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, m);
+      }
+    }
+  }
+  doors.forEach(applyDoor);
+  // Strahl gegen ein Türblatt in Stellung s (Quader 0…Breite × 0…Höhe × ±Dicke/2 in Blattkoordinaten).
+  // Nur Eintritt von außen zählt (wer im Blatt steht, kommt heraus): { t, n } oder null.
+  function rayLeaf(L, s, o, d, maxT) {
+    const a = L.slide ? L.yaw : L.yaw + s, off = L.slide ? s : 0;
+    const hx = L.hinge[0] + Math.cos(L.yaw) * off, hz = L.hinge[2] - Math.sin(L.yaw) * off;
+    const c = Math.cos(a), sn = Math.sin(a);
+    const px = o[0] - hx, py = o[1] - L.hinge[1], pz = o[2] - hz;
+    const lo = [px * c - pz * sn, py, px * sn + pz * c];
+    const ld = [d[0] * c - d[2] * sn, d[1], d[0] * sn + d[2] * c];
+    const mn = [0, 0, -L.thick / 2], mx = [L.width, L.height, L.thick / 2];
+    let t0 = 0, t1 = maxT, axis = -1;
+    for (let k = 0; k < 3; k++) {
+      if (Math.abs(ld[k]) < 1e-9) {
+        if (lo[k] < mn[k] || lo[k] > mx[k]) return null;
+        continue;
+      }
+      let ta = (mn[k] - lo[k]) / ld[k], tb = (mx[k] - lo[k]) / ld[k];
+      if (ta > tb) { const x = ta; ta = tb; tb = x; }
+      if (ta > t0) { t0 = ta; axis = k; }
+      if (tb < t1) t1 = tb;
+      if (t0 > t1) return null;
+    }
+    if (axis < 0 || t0 <= 1e-4) return null;
+    const sg = ld[axis] > 0 ? -1 : 1;
+    const n = axis === 0 ? [c * sg, 0, -sn * sg] : axis === 2 ? [sn * sg, 0, c * sg] : [0, sg, 0];
+    return { t: t0, n };
+  }
+  const near = (g, o, r) => g.leaves.some(L => Math.hypot(L.hinge[0] - o[0], L.hinge[2] - o[2]) < r + L.width + 0.5);
+  // Erster Treffer mit festem Modell und geschlossenen (bzw. sich bewegenden) Türen
+  function castMove(o, d, maxT) {
+    let best = castRay(o, d, maxT);
+    for (const g of doors) {
+      if (g.t >= 0.98 || !near(g, o, maxT)) continue;
+      for (const L of g.leaves) {
+        const r = rayLeaf(L, stateOf(g, L), o, d, best ? best.t : maxT);
+        if (r) best = r;
+      }
+    }
+    return best;
+  }
+  // Tür im Blick (Bildmitte bzw. Zeigerstrahl) in Reichweite, nicht hinter einer Wand
+  function aimDoor(o, d) {
+    let best = null;
+    for (const g of doors) {
+      if (!near(g, o, REACH)) continue;
+      for (const L of g.leaves) {
+        for (const s of [stateOf(g, L), 0]) {
+          const r = rayLeaf(L, s, o, d, REACH);
+          if (r && (!best || r.t < best.t)) best = { t: r.t, g };
+        }
+      }
+    }
+    if (!best) return null;
+    const wall = castRay(o, d, best.t);
+    return wall && wall.t < best.t - 0.03 ? null : best.g;
+  }
+  function toggleDoor(g) {
+    if (!g) return;
+    g.target = g.target > 0.5 ? 0 : 1;
+    sound.door(g.target > 0.5);
+    redraw();
+  }
+
+  // ---------- Gehen, Springen, Kopfwippen ----------
+  const bob = { phase: 0, amp: 0, on: true, x: 0, y: 0 };
+  // Gezeichneter Augpunkt: mit Kopfwippen (die Kollision rechnet ohne)
+  function viewEye() {
+    if (!bob.on || bob.amp < 1e-3) return cam.eye;
+    const r = [Math.cos(cam.yaw), 0, -Math.sin(cam.yaw)];
+    return [cam.eye[0] + r[0] * bob.x, cam.eye[1] + bob.y, cam.eye[2] + r[2] * bob.x];
+  }
+  // Wandkontakt: Strahlen in Laufrichtung (Knie, Tischkante, Hüfte, Brust; Mitte und Schultern), an Wänden entlang
+  // gleiten. Nicht in Kopfhöhe: Deckenkanten über Treppenpodesten sollen nicht aufhalten.
+  const WALL_HEIGHTS = [STEP + 0.05, 0.7, 1.0, 1.3];
+  function walkMove(m) {
+    let moved = 0;
+    for (let iter = 0; iter < 3; iter++) {
+      const L = Math.hypot(m[0], m[2]);
+      if (L < 1e-6) break;
+      const dir = [m[0] / L, 0, m[2] / L], side = [-dir[2], 0, dir[0]];
+      let hitT = Infinity, hitN = null;
+      for (const h of WALL_HEIGHTS) {
+        for (const s of [-RADIUS * 0.8, 0, RADIUS * 0.8]) {
+          const o = [cam.eye[0] + side[0] * s, walk.feet + h, cam.eye[2] + side[2] * s];
+          const r = castMove(o, dir, L + RADIUS);
+          if (r && Math.abs(r.n[1]) < 0.7 && r.t < hitT) { hitT = r.t; hitN = r.n; }
+        }
+      }
+      if (!hitN) { cam.eye[0] += m[0]; cam.eye[2] += m[2]; moved += L; break; }
+      const free = Math.max(0, hitT - RADIUS);
+      cam.eye[0] += dir[0] * free; cam.eye[2] += dir[2] * free;
+      moved += free;
+      let n = norm([hitN[0], 0, hitN[2]]);
+      if (dot(n, dir) > 0) n = scale(n, -1);
+      let rest = scale(dir, L - free);
+      rest = sub(rest, scale(n, dot(rest, n)));
+      m = rest;
+    }
+    return moved;
+  }
+  // Boden unter der Fußfläche: Mitte und vier Punkte im Abstand von 22 cm, der höchste zählt – kleine Lücken im
+  // Modell (z. B. zwischen Flur und Treppe) trägt man so, statt hindurchzufallen
+  const FOOT = 0.22;
+  function groundAt(x, feet, z) {
+    let best = null;
+    for (const [dx, dz] of [[0, 0], [FOOT, 0], [-FOOT, 0], [0, FOOT], [0, -FOOT]]) {
+      const g = floorBelow(x + dx, feet, z + dz, STEP, 200);
+      if (g !== null && (best === null || g > best)) best = g;
+    }
+    return best;
+  }
+  // Boden folgen: Stufen hinauf (bis 0,5 m) und kleine Stufen hinunter direkt, tiefer = fallen; Sprung mit Schwerkraft
+  function walkGround(dt) {
+    const g = groundAt(cam.eye[0], walk.feet, cam.eye[2]);
+    let moving = false;
+    if (walk.vy > 0 || (g !== null && g < walk.feet - 0.32) || (g === null && walk.vy !== 0)) {
+      walk.air = true;
+      walk.vy = Math.max(walk.vy - 9.81 * dt, -30);
+      // Kopf an der Decke
+      if (walk.vy > 0) {
+        const up = castRay([cam.eye[0], walk.feet + EYE, cam.eye[2]], [0, 1, 0], 0.15 + walk.vy * dt);
+        if (up) walk.vy = 0;
+      }
+      walk.feet += walk.vy * dt;
+      if (g !== null && walk.feet <= g) { walk.feet = g; walk.vy = 0; walk.air = false; sound.step(1.4); }
+      moving = true;
+    } else if (g !== null) {
+      walk.feet = g; walk.vy = 0; walk.air = false;
+    }
+    const want = walk.feet + EYE;
+    if (walk.air) { cam.eye[1] = want; return true; }
+    // Augenhöhe weich nachführen (Stufen ruckeln nicht)
+    const k = 1 - Math.exp(-dt * 14);
+    cam.eye[1] += (want - cam.eye[1]) * k;
+    if (Math.abs(want - cam.eye[1]) > 0.003) moving = true; else cam.eye[1] = want;
+    return moving;
+  }
+  function jump() {
+    if (!walk.air && playing) { walk.vy = 3.9; walk.air = true; redraw(); }
+  }
+
+  // ---------- Schritte und Türen hörbar (selbst erzeugt, WebAudio) ----------
+  const sound = (() => {
+    let ctx = null, noise = null, on = true;
+    const init = () => {
+      if (ctx || !on) return;
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      try {
+        ctx = new AC();
+        noise = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.4), ctx.sampleRate);
+        const d = noise.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      } catch (e) { ctx = null; }
+    };
+    function burst(freq, q, vol, attack, decay, delay) {
+      if (!ctx || !on) return;
+      const t = ctx.currentTime + (delay || 0);
+      const src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+      src.buffer = noise;
+      f.type = "bandpass"; f.frequency.value = freq; f.Q.value = q;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + attack);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
+      src.connect(f); f.connect(g); g.connect(ctx.destination);
+      src.start(t, Math.random() * 0.2, attack + decay + 0.02);
+    }
+    return {
+      init,
+      resume: () => { init(); if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {}); },
+      set on(v) { on = v; },
+      get on() { return on; },
+      step: k => burst(260 + Math.random() * 180, 1.1, 0.10 * (k || 1), 0.006, 0.09 + Math.random() * 0.03),
+      door: open => { burst(open ? 900 : 420, 2.5, 0.08, 0.004, 0.06); burst(open ? 380 : 180, 1.5, 0.12, 0.01, 0.18, open ? 0.05 : 0.12); },
+    };
+  })();
+
+  // ---------- Geschosse, Ort, Minikarte ----------
+  const levels = (Array.isArray(cfg.levels) ? cfg.levels : []).filter(l => l && isFinite(l.y)).sort((a, b) => a.y - b.y);
+  const levelAt = feet => { let i = 0; levels.forEach((l, k) => { if (l.y <= feet + 0.6) i = k; }); return i; };
+  const starts = (Array.isArray(cfg.starts) ? cfg.starts : []).filter(s => s && Array.isArray(s.eye) && s.eye.length === 3 && s.eye.every(isFinite));
+  let areaText = "", areaAt = 0;
+  let outside = false;
+  function updateArea(now) {
+    if (fading || anim || now - areaAt < 350) return;
+    areaAt = now;
+    const e = cam.eye, li = levelAt(walk.feet);
+    // Im Treppenhaus (Flur, Vorraum vor den Wohnungstüren): kein Wohnungsname
+    const hall = inHallway([e[0], walk.feet + 1.2, e[2]], walk.feet);
+    let best = null, bd = 7;
+    for (const s of starts) {
+      if (s.feet === undefined) s.feet = feetFor(s.eye);
+      if (Math.abs(s.feet - walk.feet) > 1.3) continue;
+      const d = Math.hypot(s.eye[0] - e[0], s.eye[2] - e[2]);
+      if (d >= bd) continue;
+      const to = [s.eye[0] - e[0], 0, s.eye[2] - e[2]], l = len(to);
+      // Sichtlinie mit Türen (geschlossene Türen trennen Räume)
+      if (l > 0.1 && castMove([e[0], walk.feet + 1.2, e[2]], scale(to, 1 / l), l)) continue;
+      best = s; bd = d;
+    }
+    const roof = !!castRay([e[0], walk.feet + EYE, e[2]], [0, 1, 0], 40);
+    outside = !roof;
+    // Zwischen zwei Geschossen (auf der Treppe, am Podest)
+    const between = roof && levels.length > 1 && levels.every(l => Math.abs(l.y - walk.feet) > 0.35);
+    let t;
+    if (!roof) t = "Außen" + (best && best.group === "Außen" ? " · " + best.name : "");
+    else if (between) t = "Treppenhaus";
+    else if (hall) t = (levels[li] ? levels[li].name + " · " : "") + "Treppenhaus";
+    else t = (levels[li] ? levels[li].name : "") + (best && best.group !== "Außen" ? (levels[li] ? " · " : "") + best.name : "");
+    if (t !== areaText) {
+      const before = areaText;
+      areaText = t;
+      $("area").textContent = t || "Innen";
+      // Raumname beim Betreten groß einblenden
+      const i = t.indexOf(" · ");
+      if (playing && before && i > 0 && t.slice(0, i) !== "Außen") toast(t.slice(i + 3), t.slice(0, i));
+    }
+  }
+  // Grundriss je Geschoss: Strecken (cm, i16) einmal in ein eigenes Bild zeichnen
+  const plan = W.plan || null;
+  let segs = null;
+  if (plan && Number.isInteger(plan.bufferView) && doc.bufferViews && doc.bufferViews[plan.bufferView]) {
+    const raw = view(plan.bufferView);
+    segs = new Int16Array(raw.slice(0, raw.length - (raw.length % 2)).buffer);
+  }
+  const planLevels = plan && Array.isArray(plan.levels) ? plan.levels : [];
+  const origin = plan && Array.isArray(plan.origin) ? plan.origin : [0, 0];
+  const planImg = new Map();
+  const MAP_PX = 12;
+  function planImage(pi) {
+    if (planImg.has(pi)) return planImg.get(pi);
+    const pl = pi === "site" ? plan && plan.site : planLevels[pi];
+    let img = null;
+    if (segs && pl && pl.count > 0 && (pl.first + pl.count) * 4 <= segs.length) {
+      let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+      for (let i = pl.first * 4; i < (pl.first + pl.count) * 4; i += 2) {
+        x0 = Math.min(x0, segs[i]); x1 = Math.max(x1, segs[i]); z0 = Math.min(z0, segs[i + 1]); z1 = Math.max(z1, segs[i + 1]);
+      }
+      let px = MAP_PX;
+      const wM = (x1 - x0) / 100 + 2, hM = (z1 - z0) / 100 + 2;
+      px = Math.min(px, 4096 / Math.max(wM, hM));
+      const cv = document.createElement("canvas");
+      cv.width = Math.max(1, Math.ceil(wM * px)); cv.height = Math.max(1, Math.ceil(hM * px));
+      const c2 = cv.getContext("2d");
+      c2.strokeStyle = pi === "site" ? "rgba(160, 182, 150, 0.85)" : "rgba(240, 242, 245, 0.92)";
+      c2.lineWidth = Math.max(1, px * 0.06);
+      c2.lineCap = "round";
+      c2.beginPath();
+      const X = v => ((v - x0) / 100 + 1) * px, Z = v => ((v - z0) / 100 + 1) * px;
+      for (let i = pl.first * 4; i < (pl.first + pl.count) * 4; i += 4) {
+        c2.moveTo(X(segs[i]), Z(segs[i + 1]));
+        c2.lineTo(X(segs[i + 2]), Z(segs[i + 3]));
+      }
+      c2.stroke();
+      // Bildursprung in Welt-Metern
+      img = { cv, px, ox: origin[0] + x0 / 100 - 1, oz: origin[1] + z0 / 100 - 1 };
+    }
+    planImg.set(pi, img);
+    return img;
+  }
+  const mapCv = $("map"), mapCtx = mapCv.getContext("2d");
+  let mapOn = true;
+  const MAP_RADIUS = 11, MAP_RADIUS_OUT = 24;
+  function drawMap() {
+    if (!mapOn) return;
+    const W2 = mapCv.width, s = W2 / (2 * (outside ? MAP_RADIUS_OUT : MAP_RADIUS));
+    mapCtx.setTransform(1, 0, 0, 1, 0, 0);
+    mapCtx.fillStyle = "rgba(18, 20, 24, 0.82)";
+    mapCtx.fillRect(0, 0, W2, W2);
+    const li = levelAt(walk.feet);
+    let pi = -1;
+    if (planLevels.length === levels.length) pi = li;
+    else planLevels.forEach((p, k) => { if (pi < 0 || Math.abs(p.y - walk.feet) < Math.abs(planLevels[pi].y - walk.feet)) pi = k; });
+    const img = pi >= 0 ? planImage(pi) : null;
+    // Blickrichtung zeigt nach oben
+    mapCtx.translate(W2 / 2, W2 / 2);
+    mapCtx.rotate(cam.yaw);
+    mapCtx.scale(s, s);
+    mapCtx.translate(-cam.eye[0], -cam.eye[2]);
+    // Draußen: Lageplan (Wege, Terrassen, Höfe) und darüber der Grundriss
+    const siteImg = outside ? planImage("site") : null;
+    if (siteImg) mapCtx.drawImage(siteImg.cv, siteImg.ox, siteImg.oz, siteImg.cv.width / siteImg.px, siteImg.cv.height / siteImg.px);
+    if (img) mapCtx.drawImage(img.cv, img.ox, img.oz, img.cv.width / img.px, img.cv.height / img.px);
+    // Türen dieses Geschosses
+    mapCtx.lineWidth = 0.12;
+    mapCtx.lineCap = "round";
+    const fy = pi >= 0 && planLevels[pi] ? planLevels[pi].y : walk.feet;
+    for (const g of doors) {
+      if (Math.abs(g.y - fy) > 1.4) continue;
+      mapCtx.strokeStyle = g.target > 0.5 ? "rgba(140, 200, 120, 0.95)" : "rgba(242, 169, 59, 0.95)";
+      mapCtx.beginPath();
+      for (const L of g.leaves) {
+        const st = stateOf(g, L), a = L.slide ? L.yaw : L.yaw + st, off = L.slide ? st : 0;
+        const hx = L.hinge[0] + Math.cos(L.yaw) * off, hz = L.hinge[2] - Math.sin(L.yaw) * off;
+        mapCtx.moveTo(hx, hz);
+        mapCtx.lineTo(hx + Math.cos(a) * L.width, hz - Math.sin(a) * L.width);
+      }
+      mapCtx.stroke();
+    }
+    // Ich: Pfeil und Blickfeld
+    mapCtx.setTransform(1, 0, 0, 1, W2 / 2, W2 / 2);
+    const k = W2 / 256;
+    mapCtx.fillStyle = "rgba(242, 169, 59, 0.18)";
+    mapCtx.beginPath();
+    mapCtx.moveTo(0, 0);
+    mapCtx.arc(0, 0, 70 * k, -Math.PI / 2 - fovY * 0.75, -Math.PI / 2 + fovY * 0.75);
+    mapCtx.closePath();
+    mapCtx.fill();
+    mapCtx.fillStyle = "#f2a93b";
+    mapCtx.strokeStyle = "#16181c";
+    mapCtx.lineWidth = 2 * k;
+    mapCtx.beginPath();
+    mapCtx.moveTo(0, -10 * k); mapCtx.lineTo(7 * k, 8 * k); mapCtx.lineTo(0, 4 * k); mapCtx.lineTo(-7 * k, 8 * k);
+    mapCtx.closePath();
+    mapCtx.stroke();
+    mapCtx.fill();
+  }
+
+  // ---------- Belichtung: drinnen gewöhnen sich die Augen (bis gut 1,3 Blenden heller) ----------
+  // Treppenhaus: freie Sicht (ohne Türen) zu einem Prüfpunkt vor einer Wohnungstür auf deren Treppenhausseite,
+  // ohne dabei durch die Öffnung einer Wohnungstür zu blicken (sonst steht man in der Wohnung dahinter)
+  const hallProbes = [];
+  function inHallway(p, feet) {
+    for (const h of hallProbes) {
+      if (Math.abs(h.y - feet) > 1.3) continue;
+      const to = sub(h.p, p), d = len(to);
+      if (d > 15) continue;
+      if (d < 0.05) return true;
+      const dir = scale(to, 1 / d);
+      if (castRay(p, dir, d)) continue;
+      if (doors.some(g => /wohnung/i.test(g.name) && g.leaves.some(L => rayLeaf(L, 0, p, dir, d)))) continue;
+      return true;
+    }
+    return false;
+  }
+  function visAt(p) {
+    if (!visData || !vis.size) return 1;
+    const k = [0, 1, 2].map(i => Math.floor((p[i] - vis.min[i]) / Math.max(vis.size[i], 1e-3) * visDims[i]));
+    if (k.some((v, i) => v < 0 || v >= visDims[i])) return 1;
+    return visData[k[0] + visDims[0] * (k[1] + visDims[1] * k[2])] / 255;
+  }
+  function updateExposure(dt) {
+    const e = cam.eye;
+    let v = 0;
+    for (const [dx, dz] of [[0, 0], [0.8, 0], [-0.8, 0], [0, 0.8], [0, -0.8]]) v += visAt([e[0] + dx, e[1], e[2] + dz]);
+    v /= 5;
+    let target = 1 + 0.9 * (1 - Math.min(1, Math.max(0, (v - 0.06) / 0.4)));
+    // Mit Lichtvolumen: nach der gebackenen Helligkeit am Augpunkt (wie die Belichtung der Fotos, gedämpft)
+    const here = irrAt(e);
+    const ref = ed.lightmap && ed.lightmap.reference;
+    if (here > 0 && ref > 0) target = Math.min(4, Math.max(1, Math.pow(ref / here, 0.6)));
+    // Viele Leuchten dicht um den Augpunkt (kleines Bad): weniger anheben, sonst überstrahlt das Weiß
+    let lampLight = 0;
+    for (const l of lamps) {
+      if (!l.on) continue;
+      const d2 = (l.p[0] - e[0]) ** 2 + (l.p[1] - e[1]) ** 2 + (l.p[2] - e[2]) ** 2;
+      if (d2 < 25) lampLight += l.lm / 800 * LAMP_K / (d2 + 0.5);
+    }
+    target = Math.max(0.7, target / (1 + 1.5 * lampLight));
+    const next = expMul + (target - expMul) * (1 - Math.exp(-dt * 2.2));
+    const changed = Math.abs(next - expMul) > 0.002;
+    expMul = changed ? next : target;
+    return changed;
+  }
+  // ---------- Leuchten: die nächsten im selben Raum (Sichtlinie), warm, mit Licht an/aus ----------
+  const lamps = (Array.isArray(W.lights) ? W.lights : []).filter(l => l && Array.isArray(l.p) && l.p.every(isFinite) && Array.isArray(l.c))
+    .map(l => ({ p: l.p, c: l.c, lm: isFinite(l.lm) ? l.lm : 800, r: Math.max(1, Math.min(14, l.r || 6)),
+      d: Array.isArray(l.d) && l.d.every(isFinite) ? norm(l.d) : null, cos: isFinite(l.cos) ? l.cos : 0.6, on: true }));
+  const LAMP_K = 0.55;
+  let lightsAt = 0, lightsEye = [1e9, 0, 0];
+  function pickLights(now) {
+    if (!lamps.length || (now - lightsAt < 300 && len(sub(cam.eye, lightsEye)) < 0.4)) return;
+    lightsAt = now; lightsEye = cam.eye.slice();
+    const e = cam.eye;
+    const cand = lamps.filter(l => l.on && Math.abs(l.p[1] - e[1]) < 3.2)
+      .map(l => ({ l, d: len(sub(l.p, e)) })).filter(x => x.d < 16).sort((a, b) => a.d - b.d);
+    let n = 0;
+    for (const { l, d } of cand) {
+      if (n >= 12) break;
+      if (d > 2.5 && castRay(e, scale(sub(l.p, e), 1 / d), d - 0.35)) continue;
+      const k = l.lm / 800 * LAMP_K;
+      lightU.pos.set([l.p[0], l.p[1], l.p[2], l.r], n * 4);
+      lightU.col.set([l.c[0] * k, l.c[1] * k, l.c[2] * k, l.d ? l.cos : -2], n * 4);
+      lightU.dir.set(l.d || [0, -1, 0], n * 3);
+      n++;
+    }
+    if (n !== lightU.n) redraw();
+    lightU.n = n;
+  }
+  function toggleLights() {
+    const e = cam.eye;
+    const near = lamps.filter(l => { const d = len(sub(l.p, e)); return d < 6 && Math.abs(l.p[1] - e[1]) < 2.5
+      && (d < 2.5 || !castRay(e, scale(sub(l.p, e), 1 / d), d - 0.35)); });
+    if (!near.length) { toast("Keine Leuchte in der Nähe", ""); return; }
+    const on = !near.some(l => l.on);
+    near.forEach(l => { l.on = on; });
+    lightsAt = 0;
+    toast(on ? "Licht an" : "Licht aus", "");
+    redraw();
+  }
+  let toastTimer = 0;
+  function toast(big, small) {
+    const t = $("toast");
+    t.firstElementChild.textContent = big;
+    t.lastElementChild.textContent = small || "";
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+  }
+  // ---------- Schilder an Wohnungstüren („Whg 10“) ----------
+  const signs = [], signInfo = [];
+  function buildSigns() {
+    const sure = [], later = [];
+    for (const g of doors) {
+      if (!/wohnung/i.test(g.name)) continue;
+      const L = g.leaves[0];
+      const dir = [Math.cos(L.yaw), 0, -Math.sin(L.yaw)], n = [dir[2], 0, -dir[0]];
+      const c = add(L.hinge, scale(dir, L.width / 2));
+      // Je Seite: nächster sichtbarer Wohnungs-Standpunkt (geschlossene Wohnungstüren verdecken – vom
+      // Treppenhaus aus sieht man keine Wohnung)
+      const seen = sgn => {
+        let best = null, bd = 15;
+        for (const depth of [0.6, 1.5]) {
+          for (const lat of [0, -0.8, 0.8]) {
+            const q = add(add(add(c, scale(n, sgn * depth)), scale(dir, lat)), [0, 1.2, 0]);
+            // Prüfpunkt muss frei sein (nicht in der Wand)
+            const back = sub(c, q), bl = len(back);
+            if (castRay(q, scale(back, 1 / bl), bl - 0.3)) continue;
+            for (const s of starts) {
+              if (!/^whg/i.test(s.group || "")) continue;
+              if (s.feet === undefined) s.feet = feetFor(s.eye);
+              if (Math.abs(s.feet - g.y) > 1.3) continue;
+              const to = [s.eye[0] - q[0], 0, s.eye[2] - q[2]], d = len(to);
+              if (d >= bd || (d > 0.1 && castMove(q, scale(to, 1 / d), d))) continue;
+              best = s; bd = d;
+            }
+          }
+        }
+        return best;
+      };
+      const plus = seen(1), minus = seen(-1);
+      signInfo.push({ y: g.y, c: c.map(v => Math.round(v * 100) / 100), plus: plus && plus.name, minus: minus && minus.name });
+      // Genau eine Seite ist die Wohnung, die andere das Treppenhaus; beide Seiten Wohnung = Tür innen
+      if (plus && minus) continue;
+      if (plus || minus) sure.push({ g, L, dir, n, c, best: plus || minus, side: plus ? -1 : 1 });
+      else later.push({ g, L, dir, n, c });
+    }
+    // Türen ohne Sicht in die Wohnung (Flur hinter der Tür): nächste noch nicht vergebene Wohnung im Geschoss
+    const used = new Set(sure.map(x => x.best.group));
+    for (const x of later) {
+      let best = null, bd = 12;
+      for (const s of starts) {
+        if (!/^whg/i.test(s.group || "") || used.has(s.group) || Math.abs(s.feet - x.g.y) > 1.3) continue;
+        const d = Math.hypot(s.eye[0] - x.c[0], s.eye[2] - x.c[2]);
+        if (d < bd) { bd = d; best = s; }
+      }
+      if (!best) continue;
+      used.add(best.group);
+      sure.push({ ...x, best, side: dot(x.n, sub(best.eye, x.c)) > 0 ? -1 : 1 });
+    }
+    for (const { L, dir, n, c, best, side } of sure) {
+      if (signs.some(z => z.el.textContent === best.group)) continue;
+      const out = scale(n, side);
+      const base = add(add(c, scale(dir, L.width / 2 + 0.25)), [0, 1.55, 0]);
+      const from = add(base, scale(out, 1.2));
+      const h = castRay(from, scale(out, -1), 1.6);
+      const p = h ? add(from, scale(out, -(h.t - 0.02))) : add(base, scale(out, 0.12));
+      const el = document.createElement("div");
+      el.className = "sign";
+      el.textContent = best.group;
+      $("signs").appendChild(el);
+      signs.push({ p, out, el });
+      hallProbes.push({ p: add(add(c, scale(out, 1.0)), [0, 1.2, 0]), y: L.hinge[1] });
+    }
+  }
+  function drawSigns() {
+    if (!signs.length) return;
+    const { viewProj } = camera();
+    const e = cam.eye, W2 = canvas.clientWidth, H2 = canvas.clientHeight;
+    for (const s of signs) {
+      const v = sub(s.p, e), d = len(v);
+      let show = playing && d < 8 && dot(v, s.out) < 0;
+      if (show) {
+        const q = [0, 0, 0, 0];
+        for (let r = 0; r < 4; r++) q[r] = viewProj[r] * s.p[0] + viewProj[4 + r] * s.p[1] + viewProj[8 + r] * s.p[2] + viewProj[12 + r];
+        show = q[3] > 0.1 && Math.abs(q[0] / q[3]) < 1.1 && Math.abs(q[1] / q[3]) < 1.1 && !castRay(e, scale(v, 1 / d), d - 0.1);
+        if (show) {
+          s.el.style.left = ((q[0] / q[3] + 1) / 2 * W2) + "px";
+          s.el.style.top = ((1 - q[1] / q[3]) / 2 * H2) + "px";
+          s.el.style.fontSize = Math.max(9, Math.min(20, 34 / d)) + "px";
+        }
+      }
+      s.el.style.display = show ? "block" : "none";
+    }
+  }
+
+  // ---------- Bedienung ----------
+  // Touch-Bedienung erst bei grober Zeigereingabe oder der ersten Berührung (Laptops mit Touchscreen und Maus: Mausfang)
+  let frame = 0, playing = false, locked = false, touchSeen = coarse, pausedAt = 0;
+  const keys = new Set();
+  const joy = { x: 0, y: 0, id: null };
+  let last = performance.now();
+  function redraw() { if (!frame) frame = requestAnimationFrame(tick); }
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const lerpAngle = (a, b, t) => { let d = (b - a) % (2 * Math.PI); if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI; return a + d * t; };
+  function flyTo(eye, yaw, pitch, ms, done) {
+    anim = { start: performance.now(), ms: ms || 650, e0: cam.eye.slice(), e1: eye, y0: cam.yaw, y1: yaw, p0: cam.pitch, p1: clampPitch(pitch), done };
+    redraw();
+  }
+  let aimed = null;
+  const hintEl = $("hint"), crossEl = $("cross");
+  function updateAim() {
+    const g = playing && !anim ? aimDoor(cam.eye, forwardOf()) : null;
+    if (g === aimed && hintEl.dataset.open === String(g ? g.target > 0.5 : "")) return;
+    aimed = g;
+    crossEl.classList.toggle("door", !!g);
+    if (!g) { hintEl.style.display = "none"; hintEl.dataset.open = ""; return; }
+    const open = g.target > 0.5;
+    hintEl.dataset.open = String(open);
+    hintEl.innerHTML = "";
+    const k = document.createElement("b");
+    k.textContent = touchSeen && !matchMedia("(pointer: fine)").matches ? "Tippen" : "E";
+    hintEl.append(k, (open ? "Tür schließen" : "Tür öffnen"));
+    hintEl.style.display = "block";
+  }
+  let frames = 0, frameMs = 0;
+  function tick(now) {
+    frame = 0;
+    frames++;
+    const dt = Math.min((now - last) / 1000, 0.1);
+    last = now;
+    let moving = false;
+    if (anim) {
+      const t = Math.min((now - anim.start) / anim.ms, 1), s = t * t * (3 - 2 * t);
+      for (let k = 0; k < 3; k++) cam.eye[k] = lerp(anim.e0[k], anim.e1[k], s);
+      cam.yaw = lerpAngle(anim.y0, anim.y1, s);
+      cam.pitch = lerp(anim.p0, anim.p1, s);
+      if (t >= 1) { const d = anim.done; anim = null; if (d) d(); } else moving = true;
+    }
+    // Türen bewegen (0,6 s)
+    for (const g of doors) {
+      if (g.t === g.target) continue;
+      const step = dt / 0.6;
+      g.t = g.target > g.t ? Math.min(g.target, g.t + step) : Math.max(g.target, g.t - step);
+      applyDoor(g);
+      shadowKey = "";
+      moving = true;
+    }
+    let stepDist = 0;
+    if (playing && !anim) {
+      const run = keys.has("shift");
+      const ahead = (keys.has("w") || keys.has("arrowup") ? 1 : 0) - (keys.has("s") || keys.has("arrowdown") ? 1 : 0) - joy.y;
+      const right = (keys.has("d") ? 1 : 0) - (keys.has("a") ? 1 : 0) + joy.x;
+      const turn = 2.6 * settings.sens * dt;
+      if (keys.has("arrowleft")) { cam.yaw += turn; moving = true; }
+      if (keys.has("arrowright")) { cam.yaw -= turn; moving = true; }
+      const f = [-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)], r = [Math.cos(cam.yaw), 0, -Math.sin(cam.yaw)];
+      let m = add(scale(f, ahead), scale(r, right));
+      const l = Math.hypot(m[0], m[2]);
+      if (l > 1e-3) {
+        const speed = (run || Math.hypot(joy.x, joy.y) > 0.97 ? 4.5 : 1.7) * settings.speed * Math.min(1, l);
+        m = scale(m, speed * dt / l);
+        // In Teilschritten bis 12 cm, jeweils mit Boden folgen (Treppen auch bei wenigen Bildern je Sekunde)
+        const n = Math.max(1, Math.ceil(speed * dt / 0.12));
+        for (let k = 0; k < n; k++) {
+          stepDist += walkMove(scale(m, 1 / n));
+          walkGround(dt / n);
+        }
+        moving = true;
+      } else if (walkGround(dt)) moving = true;
+      // Kopfwippen und Schritte (je Schritt ein Geräusch)
+      const go = stepDist > 1e-4 && !walk.air;
+      bob.amp += ((go ? 1 : 0) - bob.amp) * Math.min(1, dt * 8);
+      if (go) {
+        const before = Math.floor(bob.phase / Math.PI);
+        bob.phase += stepDist / (run ? 0.9 : 0.7) * Math.PI;
+        if (Math.floor(bob.phase / Math.PI) !== before) sound.step(run ? 1.3 : 1);
+      }
+      bob.y = bob.amp * 0.034 * (Math.abs(Math.sin(bob.phase)) - 0.5);
+      bob.x = bob.amp * 0.014 * Math.sin(bob.phase);
+      if (bob.amp > 0.01) moving = true;
+    }
+    const r0 = performance.now();
+    render();
+    frameMs = performance.now() - r0;
+    drawMap();
+    updateAim();
+    updateArea(now);
+    if (updateExposure(dt)) moving = true;
+    pickLights(now);
+    drawSigns();
+    if (moving || keys.size || joy.id !== null) redraw();
+  }
+
+  // ---------- Menü ----------
+  const menu = $("menu");
+  function setPlaying(on) {
+    if (playing && !on) pausedAt = performance.now();
+    playing = on;
+    menu.classList.toggle("hidden", on);
+    if (!on) { keys.clear(); joy.x = joy.y = 0; }
+    $("joy").style.display = on && touchSeen ? "block" : "none";
+    $("jumpBtn").style.display = on && touchSeen ? "block" : "none";
+    $("menuBtn").style.display = on && touchSeen ? "block" : "none";
+    updateAim();
+    redraw();
+  }
+  function start() {
+    sound.resume();
+    setPlaying(true);
+    if (!touchSeen && canvas.requestPointerLock) {
+      try {
+        const p = canvas.requestPointerLock();
+        if (p && p.catch) p.catch(() => {});
+      } catch (e) { /* ohne Zeigerfang: Ziehen zum Umsehen */ }
+    }
+    canvas.focus();
+  }
+  function pause() {
+    if (document.pointerLockElement === canvas && document.exitPointerLock) document.exitPointerLock();
+    setPlaying(false);
+  }
+  $("go").onclick = start;
+  $("menuBtn").onclick = pause;
+  document.addEventListener("pointerlockchange", () => {
+    locked = document.pointerLockElement === canvas;
+    if (!locked && playing && !touchSeen) setPlaying(false);
+  });
+  const mkBtn = (text, cls, fn) => { const b = document.createElement("button"); b.className = cls || ""; b.textContent = text; b.onclick = fn; return b; };
+  // Springen zu: Haupteingang und Fotostandpunkte nach Bereich
+  // Springen: kurz abblenden, versetzen, aufblenden (kein Flug durch Wände; der Raumname kommt nach der Ankunft)
+  let fading = false;
+  function placeTo(eye, dir) {
+    buildCollision();
+    const d = Array.isArray(dir) && dir.every(isFinite) ? dir : forwardOf();
+    const [y] = anglesOf([d[0], 0, d[2]]);
+    const fade = $("fade");
+    fading = true;
+    anim = null;
+    fade.classList.add("on");
+    setTimeout(() => {
+      const [x, feet, z] = startSpot(eye);
+      walk.vy = 0; walk.air = false;
+      walk.feet = feet;
+      cam.eye = [x, feet + EYE, z];
+      cam.yaw = y; cam.pitch = 0;
+      shadowKey = "";
+      areaAt = 0; lightsAt = 0;
+      redraw();
+      setTimeout(() => { fading = false; areaAt = 0; fade.classList.remove("on"); redraw(); }, 120);
+    }, 260);
+  }
+  const entrance = W.entrance && Array.isArray(W.entrance.eye) && W.entrance.eye.every(isFinite) ? W.entrance : null;
+  const places = $("places");
+  {
+    const h = document.createElement("div");
+    h.className = "row";
+    if (entrance) h.appendChild(mkBtn("Haupteingang", "chip", () => { placeTo(entrance.eye, entrance.dir); start(); }));
+    places.appendChild(h);
+    const groups = [];
+    starts.forEach(s => { let g = groups.find(g => g.name === s.group); if (!g) groups.push(g = { name: s.group || "", items: [] }); g.items.push(s); });
+    groups.forEach(g => {
+      if (g.name) { const t = document.createElement("h3"); t.textContent = g.name; places.appendChild(t); }
+      const row = document.createElement("div");
+      row.className = "row";
+      g.items.forEach(s => {
+        const i = s.name.indexOf(" – ");
+        const label = i > 0 && s.name.slice(0, i).trim() === g.name ? s.name.slice(i + 3) : s.name;
+        row.appendChild(mkBtn(label, "chip", () => { placeTo(s.eye, s.dir); start(); }));
+      });
+      places.appendChild(row);
+    });
+    if (!entrance && !starts.length) places.previousElementSibling.style.display = "none";
+  }
+  // Steuerung
+  {
+    const fine = !touchSeen || matchMedia("(pointer: fine)").matches;
+    const rows = fine
+      ? [["Maus", "umsehen (Klick ins Bild fängt die Maus)"], ["W A S D / ↑ ↓", "gehen"], ["← →", "drehen"], ["Shift", "rennen"],
+         ["Leertaste", "springen"], ["E / Klick", "Tür öffnen oder schließen"], ["L", "Licht im Raum an/aus"], ["M", "Minikarte ein/aus"], ["Esc", "Menü"]]
+      : [["Joystick links", "gehen (ganz außen: rennen)"], ["Wischen", "umsehen"], ["Tippen auf eine Tür", "öffnen oder schließen"],
+         ["⤒", "springen"], ["☰", "Menü"]];
+    const box = $("keys");
+    for (const [k, v] of rows) {
+      const a = document.createElement("kbd"); a.textContent = k;
+      const b = document.createElement("span"); b.textContent = v;
+      box.append(a, b);
+    }
+  }
+  // Qualität: Auflösung, Schattenkarte, Detailgrenze, Kantenglättung
+  const QUALITY = {
+    niedrig: { scale: 0.6, shadow: 1024, detail: 0.012, samples: 0 },
+    mittel: { scale: 1, shadow: 2048, detail: 0.005, samples: 4 },
+    hoch: { scale: 2, shadow: 4096, detail: 0.0018, samples: 4 },
+  };
+  let quality = touchSeen ? "niedrig" : "mittel";
+  const settings = { sens: 1, speed: 1, fov: 75 };
+  try {
+    const v = JSON.parse(localStorage.getItem("easyday3d.walk.settings") || "{}");
+    if (isFinite(v.sens)) settings.sens = Math.max(0.3, Math.min(3, v.sens));
+    if (isFinite(v.speed)) settings.speed = Math.max(0.5, Math.min(2, v.speed));
+    if (isFinite(v.fov)) settings.fov = Math.max(60, Math.min(90, v.fov));
+  } catch (e) { /* ohne Speicher */ }
+  function applySettings() {
+    fovH = settings.fov;
+    try { localStorage.setItem("easyday3d.walk.settings", JSON.stringify(settings)); } catch (e) { /* ohne Speicher */ }
+    redraw();
+  }
+  fovH = settings.fov;
+  try { const q = localStorage.getItem("easyday3d.walk.quality"); if (QUALITY[q]) quality = q; } catch (e) { /* ohne Speicher */ }
+  function setQuality(q) {
+    if (!QUALITY[q]) return;
+    quality = q;
+    const Q = QUALITY[q];
+    detailK = Q.detail;
+    renderScaleMax = Q.scale;
+    postSamples = Q.samples;
+    setShadowSize(Math.min(Q.shadow, maxTex));
+    document.querySelectorAll("#quality button").forEach(b => b.classList.toggle("on", b.dataset.q === q));
+    try { localStorage.setItem("easyday3d.walk.quality", q); } catch (e) { /* ohne Speicher */ }
+    redraw();
+  }
+  {
+    const box = $("quality");
+    const lbl = document.createElement("span"); lbl.textContent = "Qualität:"; lbl.style.alignSelf = "center";
+    box.appendChild(lbl);
+    for (const q of Object.keys(QUALITY)) {
+      const b = mkBtn(q[0].toUpperCase() + q.slice(1), "chip", () => setQuality(q));
+      b.dataset.q = q;
+      box.appendChild(b);
+    }
+    const tg = $("toggles");
+    const toggle = (label, get, set) => {
+      const b = mkBtn(label, "chip", () => { set(!get()); b.classList.toggle("on", get()); redraw(); });
+      b.classList.toggle("on", get());
+      tg.appendChild(b);
+      return b;
+    };
+    toggle("Kopfwippen", () => bob.on, v => { bob.on = v; });
+    toggle("Schritte hörbar", () => sound.on, v => { sound.on = v; if (v) sound.resume(); });
+    toggle("Minikarte", () => mapOn, v => { mapOn = v; $("mapBox").style.display = v ? "block" : "none"; });
+    // Regler: Empfindlichkeit, Gehtempo, Sichtfeld (im Browser gemerkt)
+    const box2 = $("sliders");
+    const slider = (label, key, min, max, step, fmt) => {
+      const l = document.createElement("label"); l.textContent = label;
+      const i = document.createElement("input");
+      Object.assign(i, { type: "range", min, max, step, value: settings[key] });
+      const o = document.createElement("output"); o.textContent = fmt(settings[key]);
+      i.addEventListener("input", () => { settings[key] = +i.value; o.textContent = fmt(settings[key]); applySettings(); });
+      l.htmlFor = i.id = "set-" + key;
+      box2.append(l, i, o);
+    };
+    slider("Empfindlichkeit", "sens", 0.3, 3, 0.05, v => v.toFixed(1).replace(".", ",") + "×");
+    slider("Gehtempo", "speed", 0.5, 2, 0.05, v => v.toFixed(1).replace(".", ",") + "×");
+    slider("Sichtfeld", "fov", 60, 90, 1, v => v + "°");
+  }
+
+  // Virtueller Joystick und Sprungknopf (Touch)
+  const joyEl = $("joy"), knob = joyEl.firstElementChild;
+  const joySet = e => {
+    const r = joyEl.getBoundingClientRect(), rad = r.width / 2;
+    let x = (e.clientX - r.left - rad) / rad, y = (e.clientY - r.top - rad) / rad;
+    const l = Math.hypot(x, y);
+    if (l > 1) { x /= l; y /= l; }
+    joy.x = x; joy.y = y;
+    knob.style.transform = `translate(${x * 50}%, ${y * 50}%)`;
+    redraw();
+  };
+  joyEl.addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); sound.resume(); joyEl.setPointerCapture(e.pointerId); joy.id = e.pointerId; joySet(e); });
+  joyEl.addEventListener("pointermove", e => { if (e.pointerId === joy.id) joySet(e); });
+  const joyEnd = e => { if (e.pointerId !== joy.id) return; joy.id = null; joy.x = joy.y = 0; knob.style.transform = ""; };
+  joyEl.addEventListener("pointerup", joyEnd);
+  joyEl.addEventListener("pointercancel", joyEnd);
+  $("jumpBtn").addEventListener("pointerdown", e => { e.preventDefault(); jump(); });
+
+  // Zeiger: mit gefangener Maus umsehen; sonst ziehen (Maus wie im Spiel, Finger greifen das Bild)
+  const pts = new Map();
+  canvas.addEventListener("contextmenu", e => e.preventDefault());
+  canvas.addEventListener("pointerdown", e => {
+    canvas.focus();
+    if (e.pointerType === "touch" && !touchSeen) { touchSeen = true; setPlaying(playing); }
+    sound.resume();
+    if (!playing) return;
+    if (locked) { if (e.button === 0) toggleDoor(aimDoor(cam.eye, forwardOf())); return; }
+    canvas.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: performance.now(), moved: false, type: e.pointerType });
+  });
+  canvas.addEventListener("pointermove", e => {
+    if (locked && playing) {
+      const k = 0.0032 * settings.sens;
+      cam.yaw -= e.movementX * k;
+      cam.pitch = Math.max(-1.45, Math.min(1.45, cam.pitch - e.movementY * k));
+      redraw();
+      return;
+    }
+    const p = pts.get(e.pointerId);
+    if (!p || !playing) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    p.x = e.clientX; p.y = e.clientY;
+    if (Math.hypot(p.x - p.x0, p.y - p.y0) > 6) p.moved = true;
+    const s = (p.type === "mouse" ? 0.0032 : 1.6 * fovY / Math.max(canvas.clientHeight, 1)) * settings.sens;
+    const sign = p.type === "mouse" ? -1 : 1;
+    cam.yaw += sign * dx * s;
+    cam.pitch = Math.max(-1.45, Math.min(1.45, cam.pitch + sign * dy * s));
+    redraw();
+  });
+  const release = e => {
+    const p = pts.get(e.pointerId);
+    pts.delete(e.pointerId);
+    if (!p || p.moved || performance.now() - p.t0 > 400 || !playing) return;
+    // Tippen bzw. Klick ohne gefangene Maus: Tür unter dem Zeiger, sonst Maus fangen
+    const g = aimDoor(cam.eye, rayAt(p.x, p.y));
+    if (g) toggleDoor(g);
+    else if (p.type === "mouse" && !touchSeen && canvas.requestPointerLock) {
+      try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (err) { /* bleibt beim Ziehen */ }
+    }
+  };
+  canvas.addEventListener("pointerup", release);
+  canvas.addEventListener("pointercancel", e => pts.delete(e.pointerId));
+  canvas.addEventListener("wheel", e => e.preventDefault(), { passive: false });
+  addEventListener("keydown", e => {
+    if (e.target && e.target.tagName === "BUTTON" && (e.key === " " || e.key === "Enter")) return;
+    const k = e.key.toLowerCase();
+    if (k === "escape") {
+      // Ein Esc, das gerade den Mausfang beendet hat, startet nicht gleich wieder
+      if (playing) pause(); else if (!$("go").disabled && performance.now() - pausedAt > 600) start();
+      e.preventDefault();
+      return;
+    }
+    if (!playing) { if (k === "enter" && !$("go").disabled) start(); return; }
+    if (["w", "a", "s", "d", "shift", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) {
+      keys.add(k);
+      if (k !== "shift") e.preventDefault();
+      redraw();
+      return;
+    }
+    if (k === " ") { e.preventDefault(); jump(); return; }
+    if (k === "e" || k === "f") { e.preventDefault(); toggleDoor(aimDoor(cam.eye, forwardOf())); return; }
+    if (k === "l") { e.preventDefault(); toggleLights(); return; }
+    if (k === "m") { mapOn = !mapOn; $("mapBox").style.display = mapOn ? "block" : "none"; document.querySelectorAll("#toggles button")[2].classList.toggle("on", mapOn); redraw(); }
+  });
+  addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
+  addEventListener("blur", () => keys.clear());
+  addEventListener("resize", redraw);
+
+  // ---------- Start ----------
+  setQuality(quality);
+  setPlaying(false);
+  say("Bereitet das Gehen vor …", 0.9);
+  await new Promise(r => setTimeout(r, 30));
+  try { buildCollision(); } catch (e) { console.warn("Kollision nicht verfügbar", e); }
+  if (entrance) {
+    const feet = feetFor(entrance.eye);
+    walk.feet = feet;
+    cam.eye = [entrance.eye[0], feet + EYE, entrance.eye[2]];
+    [cam.yaw] = anglesOf([entrance.dir[0], 0, entrance.dir[2]]);
+  } else if (starts.length) {
+    const s = starts.find(s => s.group === "Außen") || starts[0];
+    walk.feet = feetFor(s.eye);
+    cam.eye = [s.eye[0], walk.feet + EYE, s.eye[2]];
+    [cam.yaw] = anglesOf([s.dir[0], 0, s.dir[2]]);
+  } else {
+    // Vor das Haus, Blick zur Mitte
+    const x = focusCenter[0], z = focus.max[2] + 6;
+    const g = floorBelow(x, groundY + 1.6, z, 0, 50);
+    walk.feet = g !== null ? g : groundY;
+    cam.eye = [x, walk.feet + EYE, z];
+    [cam.yaw] = anglesOf([focusCenter[0] - x, 0, focusCenter[2] - z]);
+  }
+  cam.pitch = 0;
+  walk.on = true;
+  try { buildSigns(); } catch (e) { console.warn("Türschilder nicht verfügbar", e); }
+  say("Fertig", 1);
+  // Einflug: aus etwa 12 m Entfernung und 6 m Höhe sanft zum Startpunkt
+  {
+    const goal = cam.eye.slice(), yaw = cam.yaw;
+    const back = [Math.sin(yaw), 0, Math.cos(yaw)];
+    const from = add(goal, add(scale(back, 12), [0, 6, 0]));
+    cam.eye = from;
+    cam.pitch = -0.42;
+    const feet = walk.feet;
+    flyTo(goal, yaw, 0, 3600, () => { walk.feet = feet; redraw(); });
+  }
+  setTimeout(() => $("loader").classList.add("done"), 150);
+  $("sub").textContent = doors.length
+    ? "Begehung – " + doors.length + (doors.length === 1 ? " Tür" : " Türen") + " zum Öffnen. Klick ins Bild fängt die Maus, Esc öffnet dieses Menü."
+    : "Begehung – Klick ins Bild fängt die Maus, Esc öffnet dieses Menü.";
+  if (touchSeen && !matchMedia("(pointer: fine)").matches) $("sub").textContent = "Begehung – Joystick links zum Gehen, wischen zum Umsehen, auf Türen tippen.";
+  $("go").disabled = false;
+  console.info("EasyDay3D Begehung: " + Math.round(triangles).toLocaleString("de-DE") + " Dreiecke, " + items.length
+    + " Zeichenaufrufe, " + doors.length + " Türen, geladen in " + (performance.now() / 1000).toFixed(1) + " s");
+  redraw();
+  // Kleine Schnittstelle für Einbettung und automatische Prüfungen
+  window.easyday3d = Object.freeze({
+    state: () => ({ eye: cam.eye.slice(), yaw: cam.yaw, pitch: cam.pitch, feet: walk.feet, air: !!walk.air, playing, locked,
+      frames, frameMs, flying: !!anim || fading, outside, title: document.title,
+      signInfo, hall: inHallway([cam.eye[0], walk.feet + 1.2, cam.eye[2]], walk.feet),
+      signs: signs.map(x => ({ text: x.el.textContent, p: x.p.slice(), out: x.out.slice() })),
+      level: levels[levelAt(walk.feet)] ? levels[levelAt(walk.feet)].name : null, area: areaText, quality,
+      aim: aimed ? doors.indexOf(aimed) : -1, doors: doors.map(g => ({ name: g.name, open: g.target > 0.5, t: g.t,
+        at: g.leaves[0].hinge.slice(), y: g.y })), starts: starts.map(s => s.name) }),
+    play: () => setPlaying(true),
+    pause: () => pause(),
+    jump: i => { if (starts[i]) placeTo(starts[i].eye, starts[i].dir); },
+    entrance: () => { if (entrance) placeTo(entrance.eye, entrance.dir); },
+    face: (yaw, pitch) => { cam.yaw = +yaw || 0; cam.pitch = clampPitch(+pitch || 0); redraw(); },
+    place: (x, y, z, yaw) => { placeTo([+x, +y, +z], [-Math.sin(+yaw || 0), 0, -Math.cos(+yaw || 0)]); },
+    door: i => toggleDoor(doors[i]),
+    // Erster Treffer eines Strahls (festes Modell und Türen) – für Prüfungen
+    ray: (o, d, max) => { const r = castMove(o, norm(d), +max || 10); return r ? { t: r.t, n: r.n } : null; },
+    quality: q => setQuality(q),
+    // Nachbearbeitung für Prüfungen ein-/ausschalten (Verschattung in Ecken, Glühen)
+    post: (ao, bloom) => { if (isFinite(ao)) postAo = +ao; if (isFinite(bloom)) postBloom = +bloom; redraw(); },
+  });
+}
+// Erst hier starten: die Hilfsfunktionen oben sind jetzt alle definiert
+try {
+  await run();
+} catch (e) {
+  console.error(e);
+  fail("Die Begehung lässt sich nicht anzeigen: " + (e && e.message ? e.message : e));
+}
+})();
+</script>
+</body>
+</html>
